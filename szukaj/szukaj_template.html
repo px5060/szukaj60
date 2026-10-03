@@ -124,7 +124,7 @@ th{color:var(--mu);font-weight:600}
 .tbl tr.hl-loss{outline:3px solid #ff6666;background:rgba(255,102,102,.12)}
 .stk2{position:sticky;top:var(--hdrH,150px);z-index:5}
 .mbar{background:#2b3245;border:1px solid #3d4760;border-radius:8px;padding:5px 9px;margin-bottom:6px;font-size:12.5px;color:#e8ebf2}.mbar .mh{display:block;color:var(--mu);font-size:11px}
-.hlinfo:empty{display:none}.hlinfo{cursor:pointer;background:#1f2533;border:1px solid #3d4760;border-radius:8px;padding:7px 9px;margin-bottom:8px;font-size:12.5px;color:#c9cfdc}
+.hlinfo:empty{display:none}#hint:empty,.mbar.hm:empty{display:none}.mbar.hm{margin:7px 0 0}.hlinfo{cursor:pointer;background:#1f2533;border:1px solid #3d4760;border-radius:8px;padding:7px 9px;margin-bottom:8px;font-size:12.5px;color:#c9cfdc}
 .hlinfo .hl0{color:#8b93a7}.hlrow{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
 .sw{border-radius:5px;padding:2px 7px;font-weight:700;font-size:12px;color:#e8ebf2;border:2px solid}
 .sw.s1{border-color:#ffd34d}.sw.s2{border-color:#4da3ff}.sw.s3{border:2px dashed #9aa3b5}.sw.s4{border-color:#ff6600}.sw.s5{border-color:#5fd38a}.sw.s6{border-color:#ff6666}
@@ -147,12 +147,12 @@ th{color:var(--mu);font-weight:600}
 <header>
   <div class="t"><h1>__TITLE__</h1><span class="n"><span id="hdrN"></span><span class="ver">v__VER__</span></span></div>
   <button class="btn inst" id="instBtn">⬇ Zainstaluj __TITLE__ jako osobną aplikację</button>
-  <button class="btn back" id="backBtn">← __RAZEM__</button>
   <div class="erow">
     <input id="codeIn" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off" placeholder="kod, np. 010">
     <button class="btn pri" id="addBtn">Dodaj</button><button class="btn" id="undoBtn">⟲</button>
   </div>
   <div class="hint" id="hint"></div>
+  <div id="hdrModel" class="mbar hm"></div>
   <div class="tgt" id="tgt"></div>
 </header>
 <main id="main"></main>
@@ -269,7 +269,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.12.0';
+const APP_VER = '2.13.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -387,7 +387,7 @@ function recompute() {
 
 // ---- wpis kodów ----
 function toast(t) { $('hint').textContent = t; clearTimeout(toast._t); toast._t = setTimeout(hint, 3500); }
-function hint() { $('hint').textContent = `Kody wspólne z ${CFG.razem} (baza ${SEED_N.toLocaleString('pl')} + dopisane ${addedStr.length / 3}). Wpisz kod tu albo w ${CFG.razem}.`; }
+function hint() { $('hint').textContent = ''; }   // bez stałego opisu — tylko krótkie komunikaty
 // ---- okienko wyniku: po wpisaniu kodu na wierszu, na który grały modele (jak w RAZEM) ----
 let pendingPop = null;
 function betsOnNextRow() {   // modele z GRĄ na następnym wierszu (widoczne na GRA + MOJE GRY)
@@ -438,7 +438,6 @@ function undo() {
   if (!confirm(`Cofnąć ostatni kod ${c} (Nr ${codes.length})? Zniknie też z ${CFG.razem}.`)) return;
   addedStr = addedStr.slice(0, -3); lsSet(CFG.seedKey, addedStr); rebuildCodes(); recompute();
 }
-$('backBtn').onclick = () => location.replace(CFG.razemUrl);
 $('addBtn').onclick = addCode; $('undoBtn').onclick = undo;
 $('codeIn').addEventListener('keydown', e => { if (e.key === 'Enter') addCode(); });
 // import: JSON z RAZEM / jej tabel ({codes:[...]} albo lista) lub tekst z kodami; pełny ciąg od Nr 1
@@ -844,7 +843,7 @@ function renderTab() {
   const more = i >= 0 ? `<button class="btn more" id="moreBtn">Pokaż starsze (+150)</button>` : '';
   const ord = `<div class="ordr"><button class="chip ${tabAsc ? 'on' : ''}" data-ord="1">↓ czas płynie w dół</button><button class="chip ${tabAsc ? '' : 'on'}" data-ord="0">najnowsze u góry</button></div>`;
   const body = tabAsc ? R2.reverse().join('') + nextRow : nextRow + R2.join('');
-  h += `<div class="sec ${tabAsc ? 'asc' : 'desc'}">${ord}<div class="stk2"><div class="mbar"><b>${mid(selK, m)}</b> · ${esc(ruleTxt(m))}<span class="mh">dotknij wiersz → łańcuch STEP/TRIGGER · przytrzymaj → statystyki</span></div><div id="hlInfo" class="hlinfo"></div></div>${tabAsc ? more : ''}<table class="tbl"><tr><th>Nr</th><th>Kod</th><th>GRA</th><th>Stan / rola</th></tr>${body}</table>`;
+  h += `<div class="sec ${tabAsc ? 'asc' : 'desc'}">${ord}<div class="stk2"><div id="hlInfo" class="hlinfo"></div></div>${tabAsc ? more : ''}<table class="tbl"><tr><th>Nr</th><th>Kod</th><th>GRA</th><th>Stan / rola</th></tr>${body}</table>`;
   if (!tabAsc) h += more;
   h += `<div class="hint">${tabAsc ? 'Najstarsze u góry, najnowsze na dole — czytasz w dół tak jak płyną kody; na samym dole wiersz „następny”.' : 'Najnowsze u góry.'} Zielony kod = trafienie ${tgt}. Pomarańczowa linia = granica między wierszem „▶ NASTĘPNY = GRA” a wierszem zakładu. • = kod dopisany po bazie.</div></div>`;
   return h;
@@ -882,10 +881,13 @@ function renderUst() {
   return h;
 }
 function render() {
-  try { document.documentElement.style.setProperty('--hdrH', document.querySelector('header').offsetHeight + 'px'); } catch (e) {}
   $('hdrN').textContent = `Nr ${codes.length.toLocaleString('pl')} · BET ${tgt}`;
   const el = $('main');
   el.innerHTML = view === 'gra' ? renderGra() : view === 'tab' ? renderTab() : view === 'moje' ? renderMoje() : renderUst();
+  const hm = $('hdrModel');   // opis modelu w nagłówku (TABELA / MOJE)
+  if (hm) { const m = (view === 'tab' || view === 'moje') && selK !== null && P[selK] && !(view === 'moje' && !getMy().length) ? P[selK] : null;
+    hm.innerHTML = m ? `<b>${mid(selK, m)}</b> · ${esc(ruleTxt(m))}<span class="mh">dotknij wiersz → łańcuch STEP/TRIGGER · przytrzymaj → statystyki</span>` : ''; }
+  try { document.documentElement.style.setProperty('--hdrH', document.querySelector('header').offsetHeight + 'px'); } catch (e) {}
   const nm = $('navMine'); if (nm) nm.textContent = `MOJE · ${getMy().length}`;
   if (view === 'moje') el.querySelectorAll('[data-mk]').forEach(bindCard);
   if (view === 'tab' || view === 'moje') {
