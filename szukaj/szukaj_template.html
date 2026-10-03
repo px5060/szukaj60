@@ -46,6 +46,7 @@ main{padding:10px 12px 90px;max-width:760px;margin:0 auto}
 .spnow{background:var(--card);border-radius:8px;padding:6px 9px;font-size:13px;margin:6px 0}
 .flt{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:0 0 8px}.flt span{color:var(--mu);font-size:12px;width:44px}
 .flt .chip{padding:4px 10px;font-size:12.5px}
+.flt .chip.mine{border-color:var(--or);color:var(--or2)}.flt .chip.mine.on{background:var(--or);color:#fff}
 .sec.star{border-color:#ffd34d}
 .sec.mine{border-color:var(--or);box-shadow:0 0 0 1px var(--or) inset}
 .myh{color:var(--or2);font-size:12px;font-weight:700;margin-top:2px}
@@ -260,7 +261,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.8.0';
+const APP_VER = '2.9.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -283,6 +284,7 @@ let R = (() => { try { const r = JSON.parse(lsGet(LSK.rules, '')); if (r && r.ru
   return r; } } catch (e) {} return { rules: CFG.defRules, minCyc: CFG.minCyc }; })();
 let KS = (() => { try { const v = JSON.parse(lsGet(LSK.ks, '')); if (Array.isArray(v)) return v; } catch (e) {} return [5, 6, 7]; })();
 let view = 'gra', busy = false, searching = null, bandCap = {};
+let onlyMine = (() => { try { return localStorage.getItem(CFG.app + '_szukaj_v1_onlymine') === '1'; } catch (e) { return false; } })();   // GRA: tylko MOJE MODELE
 let BANDS = (() => { try { const v = JSON.parse(lsGet(LSK.bands, '')); if (Array.isArray(v)) return v; } catch (e) {} return R.rules.map((_, i) => i); })();
 function foundKey() { return LSK.found + tgt; }
 function getFound() { try { const v = JSON.parse(lsGet(foundKey(), '[]')); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
@@ -499,17 +501,20 @@ function renderGra() {
   out.forEach((r, k) => { if (qual(r)) { qn++; const s = r.bs + 1; if (s >= 5 && s <= 7 && r.ph === 2 && !isMine(k)) perK[s]++; } });   // liczniki = modele po TRIGGERZE
   const my = getMy().map(g => ({ g, k: myIndex(g) })).filter(x => x.k >= 0);
   const myOn = my.filter(x => !myResult(x.g, out[x.k]));
-  const graAll = [].concat(...B.filter((_, i) => BANDS.includes(i))).filter(k => phaseOf(out[k]) === 'gra')
+  const graAll = (onlyMine ? [] : [].concat(...B.filter((_, i) => BANDS.includes(i))).filter(k => phaseOf(out[k]) === 'gra'))
     .concat(myOn.filter(x => phaseOf(out[x.k]) === 'gra').map(x => x.k));
   const sum = graAll.reduce((s, k) => s + ST[out[k].bs], 0);
   let h = graAll.length
     ? `<div class="ban bet"><div class="big">NASTĘPNY WIERSZ (w.${n + 1}) = GRA na ${tgt}</div><div class="sub">${graAll.length} model(i) · suma stawek ${sum} zł${busy ? ' · przeliczam…' : ''}</div></div>`
     : `<div class="ban idle">w.${n + 1}: brak zakładu na krokach ${KS.map(k => ST[k - 1]).join('/')} zł${busy ? ' · przeliczam…' : ''}</div>`;
   h += lastCodes();
-  h += `<div class="flt"><span>krok:</span>${[5, 6, 7].map(k => `<button class="chip ${KS.includes(k) ? 'on' : ''}" data-k="${k}">${ST[k - 1]} zł · ${perK[k]}</button>`).join('')}</div>`;
+  h += `<div class="flt"><span>krok:</span>${[5, 6, 7].map(k => `<button class="chip ${KS.includes(k) ? 'on' : ''}" data-k="${k}">${ST[k - 1]} zł · ${perK[k]}</button>`).join('')}` +
+    `<button class="chip mine ${onlyMine ? 'on' : ''}" data-mine="1">▶ MOJE MODELE · ${my.length}</button></div>`;
   const shown = i => R.rules[i][0] !== null || B[i].length > 0;   // ★ 400+ tylko gdy model jest na kroku gry
-  h += `<div class="flt"><span>cykle:</span>${bandOrder().filter(shown).map(i => `<button class="chip ${BANDS.includes(i) ? 'on' : ''}" data-b="${i}">${bandShort(i)} · ${B[i].length}</button>`).join('')}</div>`;
-  h += `<div class="note">W kryteriach teraz: <b>${qn.toLocaleString('pl')}</b> z ${P.length.toLocaleString('pl')} modeli w puli. Niżej <b>tylko modele po TRIGGERZE</b> — zakład już ustawiony na krokach ${KS.map(k => ST[k - 1]).join('/')} zł, w grupach wg liczby cykli, najbliższa gra pierwsza. Dotknij karty → TABELA.</div>`;
+  if (!onlyMine) h += `<div class="flt"><span>cykle:</span>${bandOrder().filter(shown).map(i => `<button class="chip ${BANDS.includes(i) ? 'on' : ''}" data-b="${i}">${bandShort(i)} · ${B[i].length}</button>`).join('')}</div>`;
+  if (onlyMine) h += `<div class="note"><b>MOJE MODELE</b> — tylko modele, które grasz (${myOn.length} w grze${my.length > myOn.length ? `, ${my.length - myOn.length} zakończone` : ''}). Dotknij „▶ MOJE MODELE” jeszcze raz, żeby wrócić do wszystkich.</div>` +
+    (my.length ? '' : `<div class="empty" style="padding:10px 4px">Nie grasz jeszcze żadnego modelu. Przytrzymaj kartę modelu → „▶ Gram ten model”.</div>`);
+  else h += `<div class="note">W kryteriach teraz: <b>${qn.toLocaleString('pl')}</b> z ${P.length.toLocaleString('pl')} modeli w puli. Niżej <b>tylko modele po TRIGGERZE</b> — zakład już ustawiony na krokach ${KS.map(k => ST[k - 1]).join('/')} zł, w grupach wg liczby cykli, najbliższa gra pierwsza. Dotknij karty → TABELA.</div>`;
   if (my.length) {
     let s = `<div class="sec mine"><div class="sh"><b>▶ MOJE GRY</b><span class="m">${myOn.length} w grze · do WIN albo kroku 8</span></div>`;
     my.forEach(({ g, k }) => {
@@ -524,6 +529,7 @@ function renderGra() {
     h += s + '</div>';
   }
   for (const i of bandOrder()) {
+    if (onlyMine) break;
     if (!BANDS.includes(i) || !shown(i)) continue;
     const L = B[i], cap = bandCap[i] || 15, isStar = R.rules[i][0] === null;
     const cnt = { gra: 0, czeka: 0, trig: 0, wait: 0 }; L.forEach(k => cnt[phaseOf(out[k])]++);
@@ -854,6 +860,7 @@ function render() {
     el.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
       const k = +b.dataset.k; KS = KS.includes(k) ? KS.filter(x => x !== k) : [...KS, k].sort(); lsSet(LSK.ks, JSON.stringify(KS)); render();
     });
+    el.querySelectorAll('[data-mine]').forEach(b => b.onclick = () => { onlyMine = !onlyMine; try { localStorage.setItem(CFG.app + '_szukaj_v1_onlymine', onlyMine ? '1' : '0'); } catch (e) {} render(); scrollTo(0, 0); });
     el.querySelectorAll('[data-b]').forEach(b => b.onclick = () => {
       const i = +b.dataset.b; BANDS = BANDS.includes(i) ? BANDS.filter(x => x !== i) : [...BANDS, i]; lsSet(LSK.bands, JSON.stringify(BANDS)); render();
     });
