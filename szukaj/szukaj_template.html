@@ -263,6 +263,11 @@ onmessage = e => {
   const d = e.data;
   if (d.type === 'data') { setData(d); return; }
   if (d.type === 'eval') { const r = evalAll(d); postMessage({ type: 'eval', id: d.id, ...r }); }
+  if (d.type === 'row') {   // kto grał na wierszu d.row: symulacja na kodach sprzed tego wiersza
+    const N0 = N; N = d.row; const bets = [];
+    d.pool.forEach((m, k) => { const r = sim(m, d.R); if (r.ph === 2 && r.wz === d.row) bets.push({ k, r }); });
+    N = N0; postMessage({ type: 'row', id: d.id, row: d.row, bets });
+  }
   if (d.type === 'label') { const r = labels(d.m, d.R); postMessage({ type: 'label', id: d.id, ...r }, [r.K.buffer, r.A.buffer, r.B.buffer, r.Q.buffer]); }
   if (d.type === 'search') { const f = search(d); postMessage({ type: 'search', found: f }); }
 };
@@ -272,7 +277,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.15.0';
+const APP_VER = '2.16.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -371,6 +376,7 @@ W.onmessage = e => {
   const d = e.data;
   if (d.type === 'eval') { if (d.id !== evalId) return; lastEval = d; busy = false; render(); if (pendingPop && codes.length === pendingPop.row + 1) { showResultPop(pendingPop); } pendingPop = null; if (statK !== null) { needLabels(); renderSheet(); } }
   if (d.type === 'label') { if (d.id !== labId) return; lab = d; if (view === 'tab' || view === 'moje') render(); if (statK !== null) renderSheet(); }
+  if (d.type === 'row') { if (d.id !== rowId) return; rowPop(d); return; }
   if (d.type === 'prog') { searching = d; if (view === 'ust') render(); }
   if (d.type === 'search') {
     const f = getFound(), n = codes.length;
@@ -420,9 +426,22 @@ function showResultPop(pp) {
     <div class="rp-l">${items}</div><div class="rp-x">dotknij, żeby zamknąć</div>`;
   d.onclick = () => d.remove();
   document.body.appendChild(d);
-  flashTo(pp, win);
+  if (!pp.noFlash) flashTo(pp, win);
   setTimeout(() => d.classList.add('in'), 10);
   setTimeout(() => { if (d.isConnected) { d.classList.remove('in'); setTimeout(() => d.remove(), 300); } }, 6000 + 400 * Math.min(pp.list.length, 10));
+}
+// dotknięcie wiersza WIN / przegrana / BUST w TABELI → to samo okienko z wynikami wszystkich modeli na tym wierszu
+let rowId = 0;
+function askRowPop(i) { rowId++; W.postMessage({ type: 'row', id: rowId, row: i, pool: P, R }); }
+function rowPop(d) {
+  const my = getMy(), list = [];
+  d.bets.forEach(({ k, r }) => {
+    const g = my.find(x => specKey(x.m) === specKey(P[k]) && x.start <= d.row);
+    if (g) list.push({ k, bs: r.bs, mine: true, g });
+    else if ((qual(r) && KS.includes(r.bs + 1) && BANDS.includes(bandOf(r))) || k === selK) list.push({ k, bs: r.bs, mine: false });
+  });
+  list.sort((a, b) => (b.k === selK) - (a.k === selK) || b.mine - a.mine || b.bs - a.bs);
+  if (list.length) showResultPop({ row: d.row, list, noFlash: true });
 }
 // po okienku WIN/PRZEGRANA: TABELA modelu z tej gry, zjazd na koniec i rozbłysk zagranego wiersza
 let flashRow = null;
@@ -914,6 +933,7 @@ function render() {
         // ponowne dotknięcie obramowanego wiersza zamyka podświetlenie
         if (/\bhl-/.test(r.className)) { hlBet = -1; liveOn = false; applyHL(el); return; }
         const i = +r.dataset.i, b = betOf(i);
+        if (lab && lab.K[i] >= 6 && lab.K[i] <= 8) askRowPop(i);
         if (b >= 0 && b < codes.length) { hlBet = b; applyHL(el); return; }
         const m = P[selK], o = lastEval && lastEval.out[selK];   // wiersz bieżącego łańcucha → pokaż stan TERAZ
         if (o) { const L = liveChain(m, o); if ([].concat(L.step, L.stepPart, L.trig, L.trigPart, L.wait).includes(i)) { hlBet = -1; liveOn = true; applyHL(el); } }
