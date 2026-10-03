@@ -100,6 +100,20 @@ th{color:var(--mu);font-weight:600}
 .Lnx{background:var(--or);color:#fff;font-weight:800;display:block;margin-bottom:3px}.Lnx .s{opacity:.95;font-weight:600}
 .asc .tbl tr.pre td{border-bottom:2px solid var(--or)}.desc .tbl tr.pre td{border-top:2px solid var(--or)}
 .tbl tr.nextr td{border-top:2px solid #7030A0}
+.tbl tr[data-i]{cursor:pointer}.tbl tr.pre .Lnx .tp{opacity:.9;font-weight:600}
+.tbl tr.hl-step,.tbl tr.hl-trig,.tbl tr.hl-wait,.tbl tr.hl-pre,.tbl tr.hl-win,.tbl tr.hl-loss{outline-offset:-3px}
+.tbl tr.hl-step{outline:3px solid #ffd34d;background:rgba(255,211,77,.10)}
+.tbl tr.hl-pre{outline:3px solid #ff6600;background:rgba(255,102,0,.12)}
+.tbl tr.hl-trig{outline:3px solid #4da3ff;background:rgba(77,163,255,.12)}
+.tbl tr.hl-step.hl-trig{outline:3px solid #4da3ff;background:repeating-linear-gradient(135deg,rgba(255,211,77,.22) 0 10px,rgba(77,163,255,.22) 10px 20px)}
+.tbl tr.hl-wait{outline:2px dashed #9aa3b5}
+.tbl tr.hl-wait.hl-pre{outline:3px solid #ff6600;background:rgba(255,102,0,.12)}
+.tbl tr.hl-win{outline:3px solid #5fd38a;background:rgba(95,211,138,.12)}
+.tbl tr.hl-loss{outline:3px solid #ff6666;background:rgba(255,102,102,.12)}
+.hlinfo{position:sticky;top:var(--hdrH,150px);z-index:5;background:#1f2533;border:1px solid #3d4760;border-radius:8px;padding:7px 9px;margin-bottom:8px;font-size:12.5px;color:#c9cfdc}
+.hlinfo .hl0{color:#8b93a7}.hlrow{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.sw{border-radius:5px;padding:2px 7px;font-weight:700;font-size:12px;color:#e8ebf2;border:2px solid}
+.sw.s1{border-color:#ffd34d}.sw.s2{border-color:#4da3ff}.sw.s3{border:2px dashed #9aa3b5}.sw.s4{border-color:#ff6600}.sw.s5{border-color:#5fd38a}.sw.s6{border-color:#ff6666}
 .ordr{display:flex;gap:6px;margin:0 0 8px}.ordr .chip{padding:4px 10px;font-size:12.5px}
 .expl{background:#1f2533;border:1px solid #3d4760;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12.5px;color:#c9cfdc}
 .expl .et{font-weight:800;color:var(--tx);margin-bottom:4px}.expl ol{margin:0;padding-left:18px}.expl li{margin-bottom:3px}.expl b{color:var(--tx)}
@@ -240,7 +254,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.4.0';
+const APP_VER = '2.5.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -298,7 +312,7 @@ function mid(k, m) { return (k < POOLS[tgt].pool.length ? 'P' : 'N') + (k < POOL
 // ---- worker ----
 const W = new Worker(URL.createObjectURL(new Blob([$('wsrc').textContent], { type: 'text/javascript' })));
 let lastEval = null, evalId = 0, P = [];
-let selK = null, lab = null, labId = 0, labFor = '', tabN = 150, tabEv = false, tabScroll = true;
+let selK = null, lab = null, labId = 0, labFor = '', tabN = 150, tabEv = false, tabScroll = true, hlBet = -1;   // hlBet = podświetlony zakład (wiersz)
 let tabAsc = (() => { try { return localStorage.getItem(CFG.app + '_szukaj_v1_asc') !== '0'; } catch (e) { return true; } })();   // najstarsze u góry   // TABELA: wybrany model + jego etykiety
 W.onmessage = e => {
   const d = e.data;
@@ -481,7 +495,7 @@ function renderGra() {
   }
   return h;
 }
-function openTab(k) { selK = k; tabN = 150; tabScroll = true; view = 'tab'; document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.v === 'tab')); scrollTo(0, 0); render(); }
+function openTab(k) { selK = k; tabN = 150; tabScroll = true; hlBet = -1; view = 'tab'; document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.v === 'tab')); scrollTo(0, 0); render(); }
 function needLabels() {
   if (selK === null || selK >= P.length) return;
   const key = selK + '|' + codes.length + '|' + tgt + '|' + JSON.stringify(R) + '|' + P.length;
@@ -511,6 +525,35 @@ function explainHtml(m) {
   </ol></div>`;
 }
 // skąd zakład na wierszu b: TRIGGER (wiersz, kody) + offset; skąd stawka (poprzedni zakład)
+// łańcuch zakładu na wierszu b: wiersze STEP, TRIGGER, czekania, „następny”, GRA
+function betChain(b) {
+  const m = P[selK], off = m[4], t = b - off, sL = partsOf(m[1]).length, tL = partsOf(m[3]).length;
+  let s = -1; for (let j = t - 1; j >= 0; j--) if (lab.K[j] === 3) { s = j; break; }
+  const step = s < 0 ? [] : sL === 2 ? [s - 1, s] : Array.from({ length: m[2] }, (_, q) => s - m[2] + 1 + q);
+  const trig = tL === 2 ? [t - 1, t] : [t];
+  const wait = []; for (let j = t + 1; j < b; j++) wait.push(j);
+  return { step, trig, wait, pre: b - 1, bet: b };
+}
+function betOf(i) {   // który zakład wskazuje wiersz i (dla kliknięcia)
+  const K = lab.K;
+  if (K[i] >= 6 && K[i] <= 8) return i;
+  if (i + 1 < codes.length && K[i + 1] >= 6 && K[i + 1] <= 8) return i + 1;
+  if ((K[i] === 4 || K[i] === 5) && lab.B[i] < codes.length) return lab.B[i];
+  return -1;
+}
+const rng = a => a.length ? (a.length === 1 || a[0] === a[a.length - 1] ? `w.${a[0] + 1}` : `w.${a[0] + 1}–${a[a.length - 1] + 1}`) : '—';
+function applyHL(el) {
+  el.querySelectorAll('tr[data-i]').forEach(r => r.classList.remove('hl-step', 'hl-trig', 'hl-wait', 'hl-pre', 'hl-win', 'hl-loss'));
+  const box = el.querySelector('#hlInfo'); if (!box) return;
+  if (hlBet < 0 || !lab || !(lab.K[hlBet] >= 6 && lab.K[hlBet] <= 8)) { box.innerHTML = '<span class="hl0">Dotknij wiersza „▶ NASTĘPNY WIERSZ = GRA” albo wiersza zakładu — podświetlę STEP, TRIGGER i czekanie, które dały tę grę.</span>'; return; }
+  const c = betChain(hlBet), win = lab.K[hlBet] === 6, a = lab.A[hlBet], add = (arr, cl) => arr.forEach(j => { const r = el.querySelector(`tr[data-i="${j}"]`); if (r) r.classList.add(cl); });
+  add(c.step, 'hl-step'); add(c.trig, 'hl-trig'); add(c.wait, 'hl-wait'); add([c.pre], 'hl-pre'); add([c.bet], win ? 'hl-win' : 'hl-loss');
+  const res = win ? 'WIN' : lab.K[hlBet] === 8 ? 'BUST' : 'przegrana';
+  box.innerHTML = `<b>Zakład w.${hlBet + 1}: GRA k${a} ${ST[a - 1]} zł → ${res}</b><div class="hlrow">
+    <span class="sw s1">STEP ${rng(c.step)}</span><span class="sw s2">TRIGGER ${rng(c.trig)}</span>${c.wait.filter(j => j !== c.pre).length ? `<span class="sw s3">czekanie ${rng(c.wait.filter(j => j !== c.pre))}</span>` : ''}<span class="sw s4">▶ następny w.${c.pre + 1}</span><span class="sw ${win ? 's5' : 's6'}">GRA w.${hlBet + 1}</span></div>
+    <button class="btn more" id="hlClr" style="margin-top:6px">Wyczyść podświetlenie</button>`;
+  el.querySelector('#hlClr').onclick = () => { hlBet = -1; applyHL(el); };
+}
 function betWhy(b) {
   const m = P[selK], off = m[4], t = b - off, tp = partsOf(m[3]), a = lab.A[b];
   const tc = tp.length === 2 ? `${codes[t - 1]} + ${codes[t]}` : codes[t];
@@ -627,15 +670,15 @@ function renderTab() {
     const na = nb ? lab.A[i + 1] : 0;
     let g = '', gc = 'dim';
     if (K >= 6 && K <= 8) { const my = KS.includes(a) && lab.Q[i]; g = (my ? 'GRA ' : 'k' + a + ' ') + ST[a - 1]; gc = my ? 'my' : 'dim'; }
-    R2.push(`<tr class="${i >= SEED_N ? 'nw' : ''}${nb ? ' pre' : ''}"><td class="nr">${i + 1}</td><td class="kd ${isHit(codes[i]) ? 'h' : ''}">${codes[i]}</td><td class="g ${gc}">${g}</td><td>` +
-      (nb ? (w => `<span class="lab Lnx">▶ NASTĘPNY WIERSZ = GRA k${na} ${ST[na - 1]} zł na ${tgt}<span class="s">dlaczego: ${esc(w.trig)} · ${esc(w.stake)}</span></span>`)(betWhy(i + 1)) : '') +
+    R2.push(`<tr data-i="${i}" class="${i >= SEED_N ? 'nw' : ''}${nb ? ' pre' : ''}"><td class="nr">${i + 1}</td><td class="kd ${isHit(codes[i]) ? 'h' : ''}">${codes[i]}</td><td class="g ${gc}">${g}</td><td>` +
+      (nb ? (w => `<span class="lab Lnx">▶ NASTĘPNY WIERSZ = GRA k${na} ${ST[na - 1]} zł na ${tgt}<span class="s">dlaczego: ${esc(w.trig)} · ${esc(w.stake)}</span><span class="s tp">👆 dotknij — podświetlę STEP i TRIGGER tej gry</span></span>`)(betWhy(i + 1)) : '') +
       `<span class="lab ${c[0]}">${c[1]}<span class="s">${esc(c[2] || '')}</span></span></td></tr>`);
     shown++;
   }
   const more = i >= 0 ? `<button class="btn more" id="moreBtn">Pokaż starsze (+150)</button>` : '';
   const ord = `<div class="ordr"><button class="chip ${tabAsc ? 'on' : ''}" data-ord="1">↓ czas płynie w dół</button><button class="chip ${tabAsc ? '' : 'on'}" data-ord="0">najnowsze u góry</button></div>`;
   const body = tabAsc ? R2.reverse().join('') + nextRow : nextRow + R2.join('');
-  h += `<div class="sec ${tabAsc ? 'asc' : 'desc'}">${ord}${tabAsc ? more : ''}<table class="tbl"><tr><th>Nr</th><th>Kod</th><th>GRA</th><th>Stan / rola</th></tr>${body}</table>`;
+  h += `<div class="sec ${tabAsc ? 'asc' : 'desc'}">${ord}<div id="hlInfo" class="hlinfo"></div>${tabAsc ? more : ''}<table class="tbl"><tr><th>Nr</th><th>Kod</th><th>GRA</th><th>Stan / rola</th></tr>${body}</table>`;
   if (!tabAsc) h += more;
   h += `<div class="hint">${tabAsc ? 'Najstarsze u góry, najnowsze na dole — czytasz w dół tak jak płyną kody; na samym dole wiersz „następny”.' : 'Najnowsze u góry.'} Zielony kod = trafienie ${tgt}. Pomarańczowa linia = granica między wierszem „▶ NASTĘPNY = GRA” a wierszem zakładu. • = kod dopisany po bazie.</div></div>`;
   return h;
@@ -673,13 +716,21 @@ function renderUst() {
   return h;
 }
 function render() {
+  try { document.documentElement.style.setProperty('--hdrH', document.querySelector('header').offsetHeight + 'px'); } catch (e) {}
   $('hdrN').textContent = `Nr ${codes.length.toLocaleString('pl')} · BET ${tgt}`;
   const el = $('main');
   el.innerHTML = view === 'gra' ? renderGra() : view === 'tab' ? renderTab() : renderUst();
   if (view === 'tab') {
     const pb2 = $('playBtn'); if (pb2) pb2.onclick = () => startMy(selK);
+    if (lab) {
+      applyHL(el);
+      el.querySelectorAll('tr[data-i]').forEach(r => r.onclick = () => {
+        const b = betOf(+r.dataset.i); if (b < 0) return;
+        hlBet = hlBet === b ? -1 : b; applyHL(el);
+      });
+    }
     el.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => { if (confirm('Usunąć z MOJE GRY?')) stopMy(b.dataset.stop); });
-    const ms = $('mSel'); if (ms) ms.onchange = () => { selK = +ms.value; tabN = 150; tabScroll = true; render(); };
+    const ms = $('mSel'); if (ms) ms.onchange = () => { selK = +ms.value; tabN = 150; tabScroll = true; hlBet = -1; render(); };
     el.querySelectorAll('[data-ord]').forEach(b => b.onclick = () => { tabAsc = b.dataset.ord === '1'; try { localStorage.setItem(CFG.app + '_szukaj_v1_asc', tabAsc ? '1' : '0'); } catch (e) {} tabScroll = true; render(); });
     if (lab && tabScroll) { tabScroll = false; if (tabAsc) setTimeout(() => scrollTo(0, document.documentElement.scrollHeight), 0); }
     const go = () => {
