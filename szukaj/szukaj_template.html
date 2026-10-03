@@ -50,6 +50,7 @@ main{padding:10px 12px 90px;max-width:760px;margin:0 auto}
 .sec.star{border-color:#ffd34d}
 .sec.mine{border-color:var(--or);box-shadow:0 0 0 1px var(--or) inset}
 .myh{color:var(--or2);font-size:12px;font-weight:700;margin-top:2px}
+.mc.msel{box-shadow:0 0 0 2px var(--or) inset}
 .mc.mwin{border-left-color:#5fd38a}.mc.mbust{border-left-color:#ff6666}
 .st.pw{background:#C6EFCE;color:#006100}.st.pb{background:#FF6666;color:#fff}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;font-size:13px;margin-top:8px}
@@ -152,6 +153,7 @@ th{color:var(--mu);font-weight:600}
 <nav>
   <button data-v="gra" class="on">GRA</button>
   <button data-v="tab">TABELA</button>
+  <button data-v="moje" id="navMine">MOJE</button>
   <button data-v="ust">SZUKAJ</button>
 </nav>
 <script id="wsrc" type="text/js-worker">
@@ -261,7 +263,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.9.0';
+const APP_VER = '2.10.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -337,7 +339,7 @@ function bindCard(c) {
   c.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) cancel(); });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => c.addEventListener(ev, cancel));
   c.addEventListener('contextmenu', e => { e.preventDefault(); cancel(); lp = true; openStats(k); });
-  c.onclick = () => { if (lp) { lp = false; return; } openTab(k); };
+  c.onclick = () => { if (lp) { lp = false; return; } if (c.closest('.sec.mine')) openMine(k); else openTab(k); };
 }
 function stopMy(key) { setMy(getMy().filter(g => specKey(g.m) !== key)); render(); }
 function myResult(g, r) {   // null = gra trwa; inaczej wynik od wejścia (stawki gracza od kroku s0)
@@ -359,7 +361,7 @@ let tabAsc = (() => { try { return localStorage.getItem(CFG.app + '_szukaj_v1_as
 W.onmessage = e => {
   const d = e.data;
   if (d.type === 'eval') { if (d.id !== evalId) return; lastEval = d; busy = false; render(); if (statK !== null) { needLabels(); renderSheet(); } }
-  if (d.type === 'label') { if (d.id !== labId) return; lab = d; if (view === 'tab') render(); if (statK !== null) renderSheet(); }
+  if (d.type === 'label') { if (d.id !== labId) return; lab = d; if (view === 'tab' || view === 'moje') render(); if (statK !== null) renderSheet(); }
   if (d.type === 'prog') { searching = d; if (view === 'ust') render(); }
   if (d.type === 'search') {
     const f = getFound(), n = codes.length;
@@ -428,7 +430,7 @@ window.addEventListener('storage', e => { if (e.key === CFG.seedKey) syncFromRaz
 
 // ---- widoki ----
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
-  view = b.dataset.v; document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b)); render(); scrollTo(0, 0);
+  view = b.dataset.v; if (view === 'moje' || view === 'tab') { tabScroll = true; hlBet = -1; liveOn = true; } document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b)); render(); scrollTo(0, 0);
 });
 function renderTgt() {
   $('tgt').innerHTML = CFG.targets.length < 2 ? '' : CFG.targets.map(t => `<button class="chip ${t === tgt ? 'on' : ''}" data-t="${t}">BET ${t}</button>`).join('');
@@ -493,6 +495,20 @@ function playLists() {   // modele w kryteriach na krokach KS, w grupach; ★ do
   B.forEach(l => l.sort(cmp)); pre.sort((a, b) => out[b].bs - out[a].bs);
   return { B, pre };
 }
+function myCardsHtml(out, my, myOn, selMine) {
+    let s = `<div class="sec mine"><div class="sh"><b>▶ MOJE GRY</b><span class="m">${myOn.length} w grze · do WIN albo kroku 8</span></div>`;
+    my.forEach(({ g, k }) => {
+      const r = out[k], res = myResult(g, r), key = specKey(g.m);
+      const head = `<div class="myh">od w.${g.start + 1} · wejście k${g.s0} ${ST[g.s0 - 1]} zł</div>`;
+      const sel = selMine === k ? ' msel' : '';
+      if (res) s += `<div class="mc ${res.win ? 'mwin' : 'mbust'}${sel}" data-mk="${k}"><div class="h"><span class="id">${mid(k, P[k])}</span><span class="stk">${res.win ? 'WIN' : 'BUST'}</span></div>${head}
+        <div class="st ${res.win ? 'pw' : 'pb'}">${res.win ? `WIN na kroku ${res.k} (${ST[res.k - 1]} zł) w w.${res.row + 1}` : `BUST na kroku 8 w w.${res.row + 1}`}<span class="s">Twój wynik od wejścia: ${res.pnl >= 0 ? '+' : ''}${res.pnl} zł</span></div>
+        <button class="btn more" data-stop="${esc(key)}">Zakończ — usuń z MOJE GRY</button></div>`;
+      else s += card(k, P[k], r, phaseOf(r)).replace('<div class="rule">', head + '<div class="rule">').replace('class="mc ', `class="mc${sel} `).replace('dotknij → TABELA ·', 'dotknij → tabela w MOJE ·') +
+        `<button class="btn more" data-stop="${esc(key)}" style="margin:-2px 0 8px">Przestań śledzić ${mid(k, P[k])}</button>`;
+    });
+  return s + '</div>';
+}
 function renderGra() {
   const n = codes.length;
   if (!lastEval) return `<div class="ban idle">Liczę ${P.length.toLocaleString('pl')} modeli…</div>`;
@@ -515,19 +531,7 @@ function renderGra() {
   if (onlyMine) h += `<div class="note"><b>MOJE MODELE</b> — tylko modele, które grasz (${myOn.length} w grze${my.length > myOn.length ? `, ${my.length - myOn.length} zakończone` : ''}). Dotknij „▶ MOJE MODELE” jeszcze raz, żeby wrócić do wszystkich.</div>` +
     (my.length ? '' : `<div class="empty" style="padding:10px 4px">Nie grasz jeszcze żadnego modelu. Przytrzymaj kartę modelu → „▶ Gram ten model”.</div>`);
   else h += `<div class="note">W kryteriach teraz: <b>${qn.toLocaleString('pl')}</b> z ${P.length.toLocaleString('pl')} modeli w puli. Niżej <b>tylko modele po TRIGGERZE</b> — zakład już ustawiony na krokach ${KS.map(k => ST[k - 1]).join('/')} zł, w grupach wg liczby cykli, najbliższa gra pierwsza. Dotknij karty → TABELA.</div>`;
-  if (my.length) {
-    let s = `<div class="sec mine"><div class="sh"><b>▶ MOJE GRY</b><span class="m">${myOn.length} w grze · do WIN albo kroku 8</span></div>`;
-    my.forEach(({ g, k }) => {
-      const r = out[k], res = myResult(g, r), key = specKey(g.m);
-      const head = `<div class="myh">od w.${g.start + 1} · wejście k${g.s0} ${ST[g.s0 - 1]} zł</div>`;
-      if (res) s += `<div class="mc ${res.win ? 'mwin' : 'mbust'}" data-mk="${k}"><div class="h"><span class="id">${mid(k, P[k])}</span><span class="stk">${res.win ? 'WIN' : 'BUST'}</span></div>${head}
-        <div class="st ${res.win ? 'pw' : 'pb'}">${res.win ? `WIN na kroku ${res.k} (${ST[res.k - 1]} zł) w w.${res.row + 1}` : `BUST na kroku 8 w w.${res.row + 1}`}<span class="s">Twój wynik od wejścia: ${res.pnl >= 0 ? '+' : ''}${res.pnl} zł</span></div>
-        <button class="btn more" data-stop="${esc(key)}">Zakończ — usuń z MOJE GRY</button></div>`;
-      else s += card(k, P[k], r, phaseOf(r)).replace('<div class="rule">', head + '<div class="rule">') +
-        `<button class="btn more" data-stop="${esc(key)}" style="margin:-2px 0 8px">Przestań śledzić ${mid(k, P[k])}</button>`;
-    });
-    h += s + '</div>';
-  }
+  if (my.length) h += myCardsHtml(out, my, myOn);
   for (const i of bandOrder()) {
     if (onlyMine) break;
     if (!BANDS.includes(i) || !shown(i)) continue;
@@ -737,6 +741,18 @@ function statsHtml(r) {
   </div><div class="hint" style="margin-top:6px">Ostatnie ${S.last.length} cykli (najnowszy z prawej):</div>
   <div class="seq">${S.last.map(e => e[0] === 1 ? `<i>W${e[2]}</i>` : '<i class="b">BUST</i>').join('')}</div>`;
 }
+let tabMine = false;   // TABELA wewnątrz zakładki MOJE (bez listy wyboru — wybór kartą)
+function openMine(k) { selK = k; tabN = 150; tabScroll = true; hlBet = -1; liveOn = true; view = 'moje'; document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.v === 'moje')); scrollTo(0, 0); render(); }
+function renderMoje() {
+  if (!lastEval) return `<div class="ban idle">Liczę…</div>`;
+  const out = lastEval.out, my = getMy().map(g => ({ g, k: myIndex(g) })).filter(x => x.k >= 0), myOn = my.filter(x => !myResult(x.g, out[x.k]));
+  if (!my.length) return `<div class="note"><b>MOJE MODELE</b> — nie grasz jeszcze żadnego modelu.<br>Na ekranie GRA przytrzymaj kartę modelu → „▶ Gram ten model”.</div>`;
+  if (!my.some(x => x.k === selK)) { selK = (myOn[0] || my[0]).k; needLabels(); }
+  tabMine = true;
+  const h = myCardsHtml(out, my, myOn, selK) + `<div class="note" style="margin-top:4px">Tabela modelu <b>${mid(selK, P[selK])}</b> — dotknij innej karty wyżej, żeby zmienić model.</div>` + renderTab();
+  tabMine = false;
+  return h;
+}
 function renderTab() {
   const n = codes.length;
   const pl = lastEval ? playLists() : { B: R.rules.map(() => []), pre: [] };
@@ -756,8 +772,8 @@ function renderTab() {
     ${!r ? '' : isMine(selK) ? (() => { const g = getMy().find(x => specKey(x.m) === specKey(m)), res = myResult(g, r);
         return `<button class="btn playing" data-stop="${esc(specKey(m))}">${res ? (res.win ? '✔ WIN' : '✖ BUST') + ` — zakończona (${res.pnl >= 0 ? '+' : ''}${res.pnl} zł). Usuń z MOJE GRY` : `■ Gram od w.${g.start + 1} (wejście k${g.s0}) — przestań śledzić`}</button>`; })()
       : `<button class="btn play" id="playBtn">▶ Gram ten model — śledź do WIN / kroku 8 (teraz krok ${r.bs + 1}, ${ST[r.bs]} zł)</button>`}
-    <div class="selrow"><input id="selIn" placeholder="numer modelu, np. P3406" autocomplete="off"><button class="btn" id="selBtn">Pokaż</button></div>
-    <div class="hint" style="margin-top:8px">Wybierz model z listy (po TRIGGERZE, zakład na krokach ${KS.map(k => ST[k - 1]).join('/')} zł):</div>${sel}
+    ${tabMine ? '' : `<div class="selrow"><input id="selIn" placeholder="numer modelu, np. P3406" autocomplete="off"><button class="btn" id="selBtn">Pokaż</button></div>
+    <div class="hint" style="margin-top:8px">Wybierz model z listy (po TRIGGERZE, zakład na krokach ${KS.map(k => ST[k - 1]).join('/')} zł):</div>${sel}`}
     <div class="leg">${[['L3', 'STEP'], ['L4', 'TRIGGER'], ['L5', 'czekam na grę'], ['Lnx', '▶ następny = GRA'], ['L6', 'WIN'], ['L7', 'przegrana'], ['L8', 'BUST'], ['L9', 'seria przerwana']].map(([c, t]) => `<span class="lab ${c}">${t}</span>`).join('')}
     <span class="lab" style="background:var(--or);color:#fff;font-weight:700">GRA = Twój zakład (k${KS.join('/k')}, model w kryteriach)</span></div>
     <label class="hint" style="display:block;margin-top:6px"><input type="checkbox" id="evChk" ${tabEv ? 'checked' : ''}> tylko zdarzenia (bez „czekam…”)</label></div>`;
@@ -829,8 +845,10 @@ function render() {
   try { document.documentElement.style.setProperty('--hdrH', document.querySelector('header').offsetHeight + 'px'); } catch (e) {}
   $('hdrN').textContent = `Nr ${codes.length.toLocaleString('pl')} · BET ${tgt}`;
   const el = $('main');
-  el.innerHTML = view === 'gra' ? renderGra() : view === 'tab' ? renderTab() : renderUst();
-  if (view === 'tab') {
+  el.innerHTML = view === 'gra' ? renderGra() : view === 'tab' ? renderTab() : view === 'moje' ? renderMoje() : renderUst();
+  const nm = $('navMine'); if (nm) nm.textContent = `MOJE · ${getMy().length}`;
+  if (view === 'moje') el.querySelectorAll('[data-mk]').forEach(bindCard);
+  if (view === 'tab' || view === 'moje') {
     const pb2 = $('playBtn'); if (pb2) pb2.onclick = () => startMy(selK);
     if (lab) {
       applyHL(el);
@@ -852,8 +870,8 @@ function render() {
       const k = mm ? (mm[1] === 'P' ? +mm[2] - 1 : nb + +mm[2] - 1) : -1;
       if (mm && k >= 0 && k < P.length && (mm[1] === 'P' ? k < nb : true)) { selK = k; tabN = 150; render(); } else toast('Nie ma modelu ' + v);
     };
-    $('selBtn').onclick = go; $('selIn').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
-    $('evChk').onchange = e => { tabEv = e.target.checked; render(); };
+    if ($('selBtn')) { $('selBtn').onclick = go; $('selIn').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
+    $('evChk') && ($('evChk').onchange = e => { tabEv = e.target.checked; render(); });
     const mb = $('moreBtn'); if (mb) mb.onclick = () => { const h0 = document.documentElement.scrollHeight, y0 = scrollY; tabN += 150; render(); if (tabAsc) scrollTo(0, y0 + document.documentElement.scrollHeight - h0); };
   }
   if (view === 'gra') {
