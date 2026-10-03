@@ -123,7 +123,6 @@ th{color:var(--mu);font-weight:600}
 <nav>
   <button data-v="gra" class="on">GRA</button>
   <button data-v="tab">TABELA</button>
-  <button data-v="dz">DZIENNIK</button>
   <button data-v="ust">SZUKAJ</button>
 </nav>
 <script id="wsrc" type="text/js-worker">
@@ -148,7 +147,7 @@ function hit(P, i) {
 function limitFor(cyc, rules) { for (const [mc, mb] of rules) if (mc === null || cyc <= mc) return mb; return null; }
 function qual(cyc, bu, R) { if (cyc < R.minCyc) return false; const l = limitFor(cyc, R.rules); return l !== null && bu <= l; }
 // m = [typ, STEP, x, TRIGGER, off]; log(bet) wołane dla zakładów k5–k7 na wierszach >= from, gdy model spełniał kryteria
-function sim(m, R, from, log) {
+function sim(m, R) {
   const S = tab(m[1]), T = tab(m[3]), x = m[2], off = m[4];
   let st = 0, cnt = 0, bs = 0, i = 0, pnl = 0, nb = 0, nw = 0, nbu = 0, k5 = 0, k5w = 0, k5b = 0, srow = -1, wz = -1, ph = 0, le = -1, lt = 0, lk = 0;
   while (i < N) {
@@ -159,7 +158,6 @@ function sim(m, R, from, log) {
       const bp = i + off;
       if (bp >= N) { ph = 2; wz = bp; break; }
       const w = Y[X[bp]] === 1;
-      if (log && bp >= from && bs >= 4 && bs <= 6 && qual(nw + nbu, nbu, R)) log(bp, bs, w);
       nb++; if (bs === 4) k5++;
       if (w) { pnl += ST[bs] * 3 - CUM[bs]; nw++; if (bs >= 4) k5w++; le = bp; lt = 1; lk = bs + 1; bs = 0; }
       else if (bs === 7) { pnl -= CUM[7]; nbu++; k5b++; le = bp; lt = 2; lk = 8; bs = 0; }
@@ -198,13 +196,12 @@ function labels(m, R) {
 }
 function setData(d) { AL = d.AL; X = Int8Array.from(d.X); N = X.length; Y = Uint8Array.from(d.Y); _tc.clear(); }
 function evalAll(d) {
-  const out = [], logs = [];
+  const out = [];
   d.pool.forEach((m, k) => {
-    const r = sim(m, d.R, Math.max(d.seedN, m[5] || 0), (row, bs, w) => logs.push([row, k, bs, w ? 1 : 0]));
+    const r = sim(m, d.R);
     out.push(r);
   });
-  logs.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  return { out, logs };
+  return { out };
 }
 function rnd(n) { return Math.floor(Math.random() * n); }
 function search(d) {
@@ -235,7 +232,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.0.0';
+const APP_VER = '2.1.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -261,7 +258,7 @@ let view = 'gra', busy = false, searching = null, bandCap = {};
 let BANDS = (() => { try { const v = JSON.parse(lsGet(LSK.bands, '')); if (Array.isArray(v)) return v; } catch (e) {} return R.rules.map((_, i) => i); })();
 function foundKey() { return LSK.found + tgt; }
 function getFound() { try { const v = JSON.parse(lsGet(foundKey(), '[]')); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
-function pool() {   // pula z chmury (znaleziona na bazie do Nr seedN) + znalezione w appce (m[5] = Nr, od którego liczy dziennik) + MOJE GRY spoza puli
+function pool() {   // pula z chmury (znaleziona na bazie do Nr seedN) + znalezione w appce (m[5] = Nr znalezienia) + MOJE GRY spoza puli
   const base = POOLS[tgt].pool.map(m => [m[0], m[1], m[2], m[3], m[4], POOLS[tgt].seedN]).concat(getFound());
   const have = new Set(base.map(specKey));
   getMy().forEach(g => { if (!have.has(specKey(g.m))) { base.push([...g.m, g.start]); have.add(specKey(g.m)); } });
@@ -581,25 +578,6 @@ function renderTab() {
   h += `<div class="hint">Najnowsze u góry. Zielony kod = trafienie ${tgt}. • = kod dopisany po bazie.</div></div>`;
   return h;
 }
-function renderDz() {
-  if (!lastEval) return `<div class="ban idle">Liczę…</div>`;
-  const L = lastEval.logs, n = codes.length;
-  let h = `<div class="note"><b>Dziennik</b> = każdy zakład k5–k7 (64/128/256 zł) modelu, który w tej chwili spełniał kryteria, rozliczony na <b>nowych kodach</b> (od Nr ${SEED_N + 1}; modele znalezione w appce — od wiersza znalezienia). Zakład liczony osobno: WIN = +2 × stawka, pudło = −stawka (kurs 3,0). Opłacalność od trafności <b>33,3%</b>.</div>`;
-  if (!L.length) return h + `<div class="ban idle">Brak zakładów na nowych kodach (dopisanych: ${n - SEED_N}).</div>`;
-  const agg = { 5: [0, 0, 0], 6: [0, 0, 0], 7: [0, 0, 0] };
-  L.forEach(([row, k, bs, w]) => { const a = agg[bs + 1], s = ST[bs]; a[0]++; a[1] += w; a[2] += w ? 2 * s : -s; });
-  const tot = [0, 0, 0]; for (const k in agg) for (let j = 0; j < 3; j++) tot[j] += agg[k][j];
-  const row = (lbl, a) => `<tr><td>${lbl}</td><td>${a[0]}</td><td>${a[1]}</td><td>${a[0] ? (100 * a[1] / a[0]).toFixed(1) + '%' : '—'}</td><td class="${a[2] >= 0 ? 'pos' : 'neg'}">${a[2] >= 0 ? '+' : ''}${a[2]}</td></tr>`;
-  h += `<div class="sec"><table><tr><th>krok</th><th>zakł.</th><th>WIN</th><th>trafność</th><th>bilans zł</th></tr>` +
-    [5, 6, 7].map(k => row(`k${k} · ${ST[k - 1]} zł`, agg[k])).join('') + row('<b>RAZEM</b>', tot) + `</table></div>`;
-  const rows = {}; L.forEach(x => { (rows[x[0]] = rows[x[0]] || []).push(x); });
-  h += `<div class="sec"><div class="sh"><b>Ostatnie wiersze z zakładami</b><span class="m">${Object.keys(rows).length} wierszy</span></div><table><tr><th>Nr · kod</th><th>zakł.</th><th>WIN</th><th>stawki zł</th><th>wynik zł</th></tr>`;
-  Object.keys(rows).map(Number).sort((a, b) => b - a).slice(0, 80).forEach(r => {
-    const a = rows[r], w = a.filter(x => x[3]).length, st = a.reduce((s, x) => s + ST[x[2]], 0), res = a.reduce((s, x) => s + (x[3] ? 2 * ST[x[2]] : -ST[x[2]]), 0);
-    h += `<tr><td>${r + 1} · ${codes[r]}</td><td>${a.length}</td><td>${w}</td><td>${st}</td><td class="${res >= 0 ? 'pos' : 'neg'}">${res >= 0 ? '+' : ''}${res}</td></tr>`;
-  });
-  return h + `</table></div>`;
-}
 function stepSpace() {   // ta sama przestrzeń co szukaj/search.py
   const pats = []; for (const a of CFG.first) for (const b of '01x') for (const c of '01x') if (a + b + c !== 'xxx') pats.push(a + b + c);
   const step = [], trig = [...pats];
@@ -622,7 +600,7 @@ function renderUst() {
     <button class="btn pri" id="srch" ${searching ? 'disabled' : ''}>Szukaj 20 000 konfiguracji</button>
     <button class="btn" id="clrF" ${searching || !f ? 'disabled' : ''}>Usuń znalezione</button></div>`;
   if (searching) h += `<div class="bar"><i style="width:${(100 * searching.k / searching.n).toFixed(0)}%"></i></div><div class="hint">${searching.k.toLocaleString('pl')} / ${searching.n.toLocaleString('pl')} · nowych: ${searching.f}</div>`;
-  h += `<div class="hint">Losuje modele STEP (SERIA / UKŁAD) × TRIGGER × offset 1–7 i dodaje te, które spełniają kryteria. Dziennik liczy je dopiero od wiersza, na którym zostały znalezione.</div></div>`;
+  h += `<div class="hint">Losuje modele STEP (SERIA / UKŁAD) × TRIGGER × offset 1–7 i dodaje te, które spełniają kryteria.</div></div>`;
   h += `<div class="sec"><div class="sh"><b>Import kodów</b><span class="m">teraz ${codes.length.toLocaleString('pl')} kodów</span></div>
     <div class="hint" style="margin:0 0 8px">Plik eksportu z ${CFG.razem} albo z jej tabel (.json z listą <b>codes</b>, pełny ciąg od Nr 1) albo plik tekstowy z kodami.
     Kody muszą zgadzać się z ciągiem w appce — dopisywane są tylko nowe. Trafiają też do ${CFG.razem} (wspólna pamięć).</div>
@@ -635,7 +613,7 @@ function renderUst() {
 function render() {
   $('hdrN').textContent = `Nr ${codes.length.toLocaleString('pl')} · BET ${tgt}`;
   const el = $('main');
-  el.innerHTML = view === 'gra' ? renderGra() : view === 'tab' ? renderTab() : view === 'dz' ? renderDz() : renderUst();
+  el.innerHTML = view === 'gra' ? renderGra() : view === 'tab' ? renderTab() : renderUst();
   if (view === 'tab') {
     const pb2 = $('playBtn'); if (pb2) pb2.onclick = () => startMy(selK);
     el.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => { if (confirm('Usunąć z MOJE GRY?')) stopMy(b.dataset.stop); });
