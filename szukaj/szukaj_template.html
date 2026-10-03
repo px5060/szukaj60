@@ -122,7 +122,9 @@ th{color:var(--mu);font-weight:600}
 .tbl tr.hl-wait.hl-pre{outline:3px solid #ff6600;background:rgba(255,102,0,.12)}
 .tbl tr.hl-win{outline:3px solid #5fd38a;background:rgba(95,211,138,.12)}
 .tbl tr.hl-loss{outline:3px solid #ff6666;background:rgba(255,102,102,.12)}
-.hlinfo{position:sticky;top:var(--hdrH,150px);z-index:5;background:#1f2533;border:1px solid #3d4760;border-radius:8px;padding:7px 9px;margin-bottom:8px;font-size:12.5px;color:#c9cfdc}
+.stk2{position:sticky;top:var(--hdrH,150px);z-index:5}
+.mbar{background:#2b3245;border:1px solid #3d4760;border-radius:8px;padding:5px 9px;margin-bottom:6px;font-size:12.5px;color:#e8ebf2}.mbar .mh{display:block;color:var(--mu);font-size:11px}
+.hlinfo:empty{display:none}.hlinfo{cursor:pointer;background:#1f2533;border:1px solid #3d4760;border-radius:8px;padding:7px 9px;margin-bottom:8px;font-size:12.5px;color:#c9cfdc}
 .hlinfo .hl0{color:#8b93a7}.hlrow{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
 .sw{border-radius:5px;padding:2px 7px;font-weight:700;font-size:12px;color:#e8ebf2;border:2px solid}
 .sw.s1{border-color:#ffd34d}.sw.s2{border-color:#4da3ff}.sw.s3{border:2px dashed #9aa3b5}.sw.s4{border-color:#ff6600}.sw.s5{border-color:#5fd38a}.sw.s6{border-color:#ff6666}
@@ -267,7 +269,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.11.0';
+const APP_VER = '2.12.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -313,7 +315,7 @@ function startMy(k) {
 }
 // ---- okno STATYSTYKI modelu (przytrzymanie karty): statystyki + „Gram ten model” → MOJE GRY ----
 let statK = null;
-function openStats(k) { statK = k; selK = k; tabN = 150; tabScroll = true; hlBet = -1; liveOn = true; needLabels(); renderSheet(); }
+function openStats(k) { statK = k; if (selK !== k) { selK = k; tabN = 150; tabScroll = true; hlBet = -1; liveOn = false; } needLabels(); renderSheet(); }
 function closeStats() { statK = null; const o = $('statPop'); if (o) o.remove(); }
 function renderSheet() {
   if (statK === null) return;
@@ -360,7 +362,7 @@ function mid(k, m) { return (k < POOLS[tgt].pool.length ? 'P' : 'N') + (k < POOL
 // ---- worker ----
 const W = new Worker(URL.createObjectURL(new Blob([$('wsrc').textContent], { type: 'text/javascript' })));
 let lastEval = null, evalId = 0, P = [];
-let selK = null, lab = null, labId = 0, labFor = '', tabN = 150, tabEv = false, tabScroll = true, hlBet = -1, liveOn = true;   // hlBet = podświetlony dawny zakład (wiersz); liveOn = ramki stanu TERAZ
+let selK = null, lab = null, labId = 0, labFor = '', tabN = 150, tabEv = false, tabScroll = true, hlBet = -1, liveOn = false;   // hlBet = podświetlony dawny zakład (wiersz); liveOn = ramki stanu TERAZ (domyślnie schowane)
 let tabAsc = (() => { try { return localStorage.getItem(CFG.app + '_szukaj_v1_asc') !== '0'; } catch (e) { return true; } })();   // najstarsze u góry   // TABELA: wybrany model + jego etykiety
 W.onmessage = e => {
   const d = e.data;
@@ -468,7 +470,7 @@ window.addEventListener('storage', e => { if (e.key === CFG.seedKey) syncFromRaz
 
 // ---- widoki ----
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
-  view = b.dataset.v; if (view === 'moje' || view === 'tab') { tabScroll = true; hlBet = -1; liveOn = true; } document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b)); render(); scrollTo(0, 0);
+  view = b.dataset.v; if (view === 'moje' || view === 'tab') { tabScroll = true; hlBet = -1; liveOn = false; } document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b)); render(); scrollTo(0, 0);
 });
 function renderTgt() {
   $('tgt').innerHTML = CFG.targets.length < 2 ? '' : CFG.targets.map(t => `<button class="chip ${t === tgt ? 'on' : ''}" data-t="${t}">BET ${t}</button>`).join('');
@@ -584,7 +586,7 @@ function renderGra() {
   }
   return h;
 }
-function openTab(k) { selK = k; tabN = 150; tabScroll = true; hlBet = -1; liveOn = true; view = 'tab'; document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.v === 'tab')); scrollTo(0, 0); render(); }
+function openTab(k) { selK = k; tabN = 150; tabScroll = true; hlBet = -1; liveOn = false; view = 'tab'; document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.v === 'tab')); scrollTo(0, 0); render(); }
 function needLabels() {
   if (selK === null || selK >= P.length) return;
   const key = selK + '|' + codes.length + '|' + tgt + '|' + JSON.stringify(R) + '|' + P.length;
@@ -683,7 +685,7 @@ function liveHtml(m, r) {
   return `<b>TERAZ (krok ${r.bs + 1}, ${ST[r.bs]} zł):</b> ${what}<div class="hlrow">` +
     (L.step.length ? `<span class="sw s1">STEP ${rng(L.step)}</span>` : '') + (L.stepPart.length ? `<span class="sw s1p">STEP w toku ${rng(L.stepPart)}</span>` : '') +
     (L.trig.length ? `<span class="sw s2">TRIGGER ${rng(L.trig)}</span>` : '') + (L.trigPart.length ? `<span class="sw s2p">1. kod TRIGGER-a w.${n}</span>` : '') +
-    (L.wait.length ? `<span class="sw s3">czekanie ${rng(L.wait)}</span>` : '') + `</div><div class="hl0" style="margin-top:4px">Dotknij „▶ NASTĘPNY WIERSZ = GRA” wyżej, żeby zobaczyć łańcuch dawnego zakładu.</div>`;
+    (L.wait.length ? `<span class="sw s3">czekanie ${rng(L.wait)}</span>` : '') + `</div>`;
 }
 function applyHL(el) {
   el.querySelectorAll('tr[data-i]').forEach(r => r.classList.remove('hl-step', 'hl-trig', 'hl-wait', 'hl-pre', 'hl-win', 'hl-loss', 'hl-spart', 'hl-tpart'));
@@ -691,19 +693,19 @@ function applyHL(el) {
   const add = (arr, cl) => arr.forEach(j => { const r = el.querySelector(`tr[data-i="${j}"]`); if (r) r.classList.add(cl); });
   if (hlBet < 0 || !lab || !(lab.K[hlBet] >= 6 && lab.K[hlBet] <= 8)) {   // domyślnie: bieżący łańcuch
     const m = P[selK], r = lastEval && lastEval.out[selK]; if (!lab || !r) { box.innerHTML = ''; return; }
-    if (!liveOn) { box.innerHTML = '<span class="hl0">Podświetlenie zamknięte. Dotknij wiersza „▶ NASTĘPNY WIERSZ = GRA” albo wiersza zakładu, żeby zobaczyć łańcuch.</span><button class="btn more" id="hlLive" style="margin-top:6px">Pokaż stan TERAZ</button>';
-      el.querySelector('#hlLive').onclick = () => { liveOn = true; applyHL(el); }; return; }
+    if (!liveOn) { box.innerHTML = ''; return; }   // schowane — otwiera dotknięcie wiersza
     const L = liveChain(m, r); add(L.step, 'hl-step'); add(L.stepPart, 'hl-spart'); add(L.trig, 'hl-trig'); add(L.trigPart, 'hl-tpart'); add(L.wait, 'hl-wait');
-    box.innerHTML = liveHtml(m, r) + '<button class="btn more" id="hlOff" style="margin-top:6px">Zamknij podświetlenie</button>';
-    el.querySelector('#hlOff').onclick = () => { liveOn = false; applyHL(el); }; return;
+    box.innerHTML = liveHtml(m, r) + '<div class="hl0" style="margin-top:4px;text-align:right">dotknij tutaj albo obramowanego wiersza, żeby zamknąć</div>';
+    box.onclick = () => { liveOn = false; applyHL(el); }; return;
   }
   const c = betChain(hlBet), win = lab.K[hlBet] === 6, a = lab.A[hlBet];
   add(c.step, 'hl-step'); add(c.trig, 'hl-trig'); add(c.wait, 'hl-wait'); add([c.pre], 'hl-pre'); add([c.bet], win ? 'hl-win' : 'hl-loss');
   const res = win ? 'WIN' : lab.K[hlBet] === 8 ? 'BUST' : 'przegrana';
   box.innerHTML = `<b>Zakład w.${hlBet + 1}: GRA k${a} ${ST[a - 1]} zł → ${res}</b><div class="hlrow">
     <span class="sw s1">STEP ${rng(c.step)}</span><span class="sw s2">TRIGGER ${rng(c.trig)}</span>${c.wait.filter(j => j !== c.pre).length ? `<span class="sw s3">czekanie ${rng(c.wait.filter(j => j !== c.pre))}</span>` : ''}<span class="sw s4">▶ następny w.${c.pre + 1}</span><span class="sw ${win ? 's5' : 's6'}">GRA w.${hlBet + 1}</span></div>
-    <button class="btn more" id="hlClr" style="margin-top:6px">Wróć do stanu TERAZ</button>`;
-  el.querySelector('#hlClr').onclick = () => { hlBet = -1; liveOn = true; applyHL(el); };
+    <button class="btn more" id="hlClr" style="margin-top:6px">Zamknij</button>`;
+  el.querySelector('#hlClr').onclick = e => { e.stopPropagation(); hlBet = -1; liveOn = false; applyHL(el); };
+  box.onclick = () => { hlBet = -1; liveOn = false; applyHL(el); };
 }
 function betWhy(b) {
   const m = P[selK], off = m[4], t = b - off, tp = partsOf(m[3]), a = lab.A[b];
@@ -780,7 +782,7 @@ function statsHtml(r) {
   <div class="seq">${S.last.map(e => e[0] === 1 ? `<i>W${e[2]}</i>` : '<i class="b">BUST</i>').join('')}</div>`;
 }
 let tabMine = false;   // TABELA wewnątrz zakładki MOJE (bez listy wyboru — wybór kartą)
-function openMine(k) { selK = k; tabN = 150; tabScroll = true; hlBet = -1; liveOn = true; view = 'moje'; document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.v === 'moje')); scrollTo(0, 0); render(); }
+function openMine(k) { selK = k; tabN = 150; tabScroll = true; hlBet = -1; liveOn = false; view = 'moje'; document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.v === 'moje')); scrollTo(0, 0); render(); }
 function renderMoje() {
   if (!lastEval) return `<div class="ban idle">Liczę…</div>`;
   const out = lastEval.out, my = getMy().map(g => ({ g, k: myIndex(g) })).filter(x => x.k >= 0), myOn = my.filter(x => !myResult(x.g, out[x.k]));
@@ -824,7 +826,7 @@ function renderTab() {
     if (r.ph !== 2 || r.wz !== n) { const mb = minToBet(m, r); if (mb) next += r.ph === 2 ? ` — za ${mb.d}` : ` · najwcześniej GRA na w.${n + mb.d} (za ${mb.d})`; }
   }
   const myNext = r && r.ph === 2 && r.wz === n && KS.includes(r.bs + 1) && qual(r);
-  const nextRow = `<tr class="nextr"><td class="nr">${n + 1}</td><td class="kd">?</td><td class="g ${myNext ? 'my' : 'dim'}">${myNext ? 'GRA ' + ST[r.bs] : ''}</td><td><span class="lab Lnext">następny: ${esc(next)}</span></td></tr>`;
+  const nextRow = `<tr class="nextr" id="nextRow"><td class="nr">${n + 1}</td><td class="kd">?</td><td class="g ${myNext ? 'my' : 'dim'}">${myNext ? 'GRA ' + ST[r.bs] : ''}</td><td><span class="lab Lnext">następny: ${esc(next)}</span></td></tr>`;
   const R2 = [];
   let shown = 0, i = n - 1;
   for (; i >= 0 && shown < tabN; i--) {
@@ -842,7 +844,7 @@ function renderTab() {
   const more = i >= 0 ? `<button class="btn more" id="moreBtn">Pokaż starsze (+150)</button>` : '';
   const ord = `<div class="ordr"><button class="chip ${tabAsc ? 'on' : ''}" data-ord="1">↓ czas płynie w dół</button><button class="chip ${tabAsc ? '' : 'on'}" data-ord="0">najnowsze u góry</button></div>`;
   const body = tabAsc ? R2.reverse().join('') + nextRow : nextRow + R2.join('');
-  h += `<div class="sec ${tabAsc ? 'asc' : 'desc'}">${ord}<div id="hlInfo" class="hlinfo"></div>${tabAsc ? more : ''}<table class="tbl"><tr><th>Nr</th><th>Kod</th><th>GRA</th><th>Stan / rola</th></tr>${body}</table>`;
+  h += `<div class="sec ${tabAsc ? 'asc' : 'desc'}">${ord}<div class="stk2"><div class="mbar"><b>${mid(selK, m)}</b> · ${esc(ruleTxt(m))}<span class="mh">dotknij wiersz → łańcuch STEP/TRIGGER · przytrzymaj → statystyki</span></div><div id="hlInfo" class="hlinfo"></div></div>${tabAsc ? more : ''}<table class="tbl"><tr><th>Nr</th><th>Kod</th><th>GRA</th><th>Stan / rola</th></tr>${body}</table>`;
   if (!tabAsc) h += more;
   h += `<div class="hint">${tabAsc ? 'Najstarsze u góry, najnowsze na dole — czytasz w dół tak jak płyną kody; na samym dole wiersz „następny”.' : 'Najnowsze u góry.'} Zielony kod = trafienie ${tgt}. Pomarańczowa linia = granica między wierszem „▶ NASTĘPNY = GRA” a wierszem zakładu. • = kod dopisany po bazie.</div></div>`;
   return h;
@@ -890,6 +892,15 @@ function render() {
     const pb2 = $('playBtn'); if (pb2) pb2.onclick = () => startMy(selK);
     if (lab) {
       applyHL(el);
+      const nr = $('nextRow'); if (nr) { nr.style.cursor = 'pointer'; nr.onclick = () => { hlBet = -1; liveOn = !liveOn; applyHL(el); }; }
+      el.querySelectorAll('tr[data-i], #nextRow').forEach(r => {   // przytrzymanie wiersza → STATYSTYKI modelu
+        let t = null, x0 = 0, y0 = 0; const cancel = () => { clearTimeout(t); t = null; };
+        r.addEventListener('pointerdown', e => { r._lp = false; x0 = e.clientX; y0 = e.clientY; cancel(); t = setTimeout(() => { r._lp = true; openStats(selK); }, 550); });
+        r.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) cancel(); });
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => r.addEventListener(ev, cancel));
+        r.addEventListener('contextmenu', e => { e.preventDefault(); cancel(); r._lp = true; openStats(selK); });
+        r.addEventListener('click', e => { if (r._lp) { r._lp = false; e.stopImmediatePropagation(); } }, true);
+      });
       el.querySelectorAll('tr[data-i]').forEach(r => r.onclick = () => {
         // ponowne dotknięcie obramowanego wiersza zamyka podświetlenie
         if (/\bhl-/.test(r.className)) { hlBet = -1; liveOn = false; applyHL(el); return; }
