@@ -14,8 +14,6 @@ Appka = `../index.html` (repo osobne od RAZEM, własny adres).
   GRA na następnym wierszu, zakład ustawiony, STEP otwarty (z kodami, które dadzą TRIGGER).
 - **TABELA**: wybierz model (albo dotknij karty na GRA) — na ciąg kodów nanoszone są jego etykiety
   (STEP, TRIGGER, przed grą, krok i stawka, WIN / przegrana / BUST), najnowsze u góry.
-- **DZIENNIK** rozlicza każdy pokazany zakład k5–k7 na nowych kodach (od końca bazy), żeby było widać
-  rzeczywistą trafność podpowiedzi wobec progu 33,3%.
 - **Import kodów** (zakładka SZUKAJ): plik eksportu z RAZEM lub jej tabel (.json z `codes`, pełny ciąg od Nr 1)
   albo plik tekstowy; kody muszą zgadzać się z ciągiem, dopisywane są tylko nowe.
 - **SZUKAJ** losuje kolejne 20 000 konfiguracji w telefonie i dopisuje te, które spełniają kryteria.
