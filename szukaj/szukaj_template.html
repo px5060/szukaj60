@@ -117,6 +117,9 @@ th{color:var(--mu);font-weight:600}
 .tbl tr.hl-trig{outline:3px solid #4da3ff;background:rgba(77,163,255,.12)}
 .tbl tr.hl-step.hl-trig{outline:3px solid #4da3ff;background:repeating-linear-gradient(135deg,rgba(255,211,77,.22) 0 10px,rgba(77,163,255,.22) 10px 20px)}
 .tbl tr.hl-wait{outline:2px dashed #9aa3b5}
+@keyframes flw{0%,100%{background:transparent;outline-color:transparent}15%,45%,75%{background:rgba(46,204,113,.55);outline:3px solid #2ecc71}30%,60%,90%{background:rgba(46,204,113,.15)}}
+@keyframes fll{0%,100%{background:transparent;outline-color:transparent}15%,45%,75%{background:rgba(231,76,60,.6);outline:3px solid #e74c3c}30%,60%,90%{background:rgba(231,76,60,.15)}}
+.tbl tr.flw{animation:flw 3s ease;outline-offset:-3px}.tbl tr.fll{animation:fll 3s ease;outline-offset:-3px}
 .tbl tr.hl-spart{outline:3px dashed #ffd34d;outline-offset:-3px}.tbl tr.hl-tpart{outline:3px dashed #4da3ff;outline-offset:-3px}
 .sw.s1p{border:2px dashed #ffd34d}.sw.s2p{border:2px dashed #4da3ff}
 .tbl tr.hl-wait.hl-pre{outline:3px solid #ff6600;background:rgba(255,102,0,.12)}
@@ -269,7 +272,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.13.0';
+const APP_VER = '2.14.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -331,8 +334,8 @@ function renderSheet() {
       ? `<button class="btn playing" id="spStop">${res ? (res.win ? '✔ WIN' : '✖ BUST') + ` — gra zakończona (${res.pnl >= 0 ? '+' : ''}${res.pnl} zł). Usuń z MOJE GRY` : `■ W MOJE GRY od w.${g.start + 1} (wejście k${g.s0}) — przestań śledzić`}</button>`
       : `<button class="btn play" id="spPlay">▶ Gram ten model — dodaj do MOJE GRY (teraz krok ${r.bs + 1}, ${ST[r.bs]} zł)</button><div class="hint" style="margin-top:4px">Model zostanie w MOJE GRY na górze ekranu GRA do WIN albo kroku 8, niezależnie od kryteriów i filtrów.</div>`}
     ${ready ? statsHtml(r) : '<div class="hint" style="margin-top:10px">Liczę statystyki…</div>'}
-    <button class="btn more" id="spTab" style="margin-top:10px">Otwórz TABELĘ tego modelu</button></div>`;
-  $('spX').onclick = closeStats;
+    <button class="btn more" id="spTab" style="margin-top:10px">Otwórz TABELĘ tego modelu</button><button class="btn more" id="spClose" style="margin-top:6px">✕ Zamknij</button></div>`;
+  $('spX').onclick = closeStats; $('spClose').onclick = closeStats;
   $('spTab').onclick = () => { closeStats(); openTab(k); };
   const p = $('spPlay'); if (p) p.onclick = () => { startMy(k); renderSheet(); };
   const s = $('spStop'); if (s) s.onclick = () => { if (confirm('Usunąć z MOJE GRY?')) { stopMy(specKey(m)); renderSheet(); } };
@@ -417,8 +420,28 @@ function showResultPop(pp) {
     <div class="rp-l">${items}</div><div class="rp-x">dotknij, żeby zamknąć</div>`;
   d.onclick = () => d.remove();
   document.body.appendChild(d);
+  flashTo(pp, win);
   setTimeout(() => d.classList.add('in'), 10);
   setTimeout(() => { if (d.isConnected) { d.classList.remove('in'); setTimeout(() => d.remove(), 300); } }, 6000 + 400 * Math.min(pp.list.length, 10));
+}
+// po okienku WIN/PRZEGRANA: TABELA modelu z tej gry, zjazd na koniec i rozbłysk zagranego wiersza
+let flashRow = null;
+function flashTo(pp, win) {
+  const ks = pp.list.map(x => x.k), mine = pp.list.filter(x => x.mine).map(x => x.k);
+  const k = ks.includes(selK) && (view !== 'gra' || !mine.length || mine.includes(selK)) ? selK : mine.length ? mine[0] : ks[0];
+  flashRow = { i: pp.row, win };
+  if (view === 'moje' && !mine.includes(k)) view = 'tab';
+  if (view === 'gra') view = mine.includes(k) ? 'moje' : 'tab';
+  if (selK !== k) { selK = k; tabN = 150; }
+  tabScroll = true; hlBet = -1; liveOn = false;
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.v === view));
+  render();
+}
+function doFlash(el) {
+  if (!flashRow || !lab) return;
+  const f = flashRow; flashRow = null;
+  const tr = el.querySelector(`tr[data-i="${f.i}"]`); if (!tr) return;
+  setTimeout(() => { if (tabAsc) scrollTo(0, document.documentElement.scrollHeight); else tr.scrollIntoView({ block: 'center' }); tr.classList.add(f.win ? 'flw' : 'fll'); setTimeout(() => tr.classList.remove('flw', 'fll'), 3200); }, 30);
 }
 function addCode() {
   const v = $('codeIn').value.trim();
@@ -797,11 +820,6 @@ function renderTab() {
   const pl = lastEval ? playLists() : { B: R.rules.map(() => []), pre: [] };
   if (selK === null || selK >= P.length) { const f = [].concat(...bandOrder().map(i => pl.B[i])); selK = f.length ? f[0] : 0; }
   const o = lastEval ? lastEval.out : null;
-  const opt = k => `<option value="${k}" ${k === selK ? 'selected' : ''}>${mid(k, P[k])} · k${o[k].bs + 1} ${ST[o[k].bs]} zł · ${o[k].ph === 2 ? (o[k].wz === n ? 'GRA na następnym' : `zakład za ${o[k].wz + 1 - n} (w.${o[k].wz + 1})`) : PHASE_TXT[phaseOf(o[k])]} · ${o[k].nw + o[k].nbu} cykli / ${o[k].nbu} BUST</option>`;
-  const inList = o && pl.B.some(l => l.includes(selK));
-  const sel = !o ? '' : `<select id="mSel" class="msel">${inList ? '' : `<option value="${selK}" selected>${mid(selK, P[selK])} (wybrany numerem)</option>`}` +
-    bandOrder().filter(i => pl.B[i].length || R.rules[i][0] !== null).map(i => `<optgroup label="${bandName(i)} — ${pl.B[i].length} po TRIGGERZE">${pl.B[i].map(opt).join('')}</optgroup>`).join('') +
-    `</select>`;
   needLabels();
   const m = P[selK], r = lastEval ? lastEval.out[selK] : null;
   let h = `<div class="sec"><div class="sh"><b>Model ${mid(selK, m)}</b><span class="m">${r ? `cykle ${r.nw + r.nbu} · BUST ${r.nbu} · ${r.pnl >= 0 ? '+' : ''}${r.pnl} zł · ${qual(r) ? 'w kryteriach' : 'POZA kryteriami'}` : ''}</span></div>
@@ -811,10 +829,6 @@ function renderTab() {
     ${!r ? '' : isMine(selK) ? (() => { const g = getMy().find(x => specKey(x.m) === specKey(m)), res = myResult(g, r);
         return `<button class="btn playing" data-stop="${esc(specKey(m))}">${res ? (res.win ? '✔ WIN' : '✖ BUST') + ` — zakończona (${res.pnl >= 0 ? '+' : ''}${res.pnl} zł). Usuń z MOJE GRY` : `■ Gram od w.${g.start + 1} (wejście k${g.s0}) — przestań śledzić`}</button>`; })()
       : `<button class="btn play" id="playBtn">▶ Gram ten model — śledź do WIN / kroku 8 (teraz krok ${r.bs + 1}, ${ST[r.bs]} zł)</button>`}
-    ${tabMine ? '' : `<div class="selrow"><input id="selIn" placeholder="numer modelu, np. P3406" autocomplete="off"><button class="btn" id="selBtn">Pokaż</button></div>
-    <div class="hint" style="margin-top:8px">Wybierz model z listy (po TRIGGERZE, zakład na krokach ${KS.map(k => ST[k - 1]).join('/')} zł):</div>${sel}`}
-    <div class="leg">${[['L3', 'STEP'], ['L4', 'TRIGGER'], ['L5', 'czekam na grę'], ['Lnx', '▶ następny = GRA'], ['L6', 'WIN'], ['L7', 'przegrana'], ['L8', 'BUST'], ['L9', 'seria przerwana']].map(([c, t]) => `<span class="lab ${c}">${t}</span>`).join('')}
-    <span class="lab" style="background:var(--or);color:#fff;font-weight:700">GRA = Twój zakład (k${KS.join('/k')}, model w kryteriach)</span></div>
     <label class="hint" style="display:block;margin-top:6px"><input type="checkbox" id="evChk" ${tabEv ? 'checked' : ''}> tylko zdarzenia (bez „czekam…”)</label></div>`;
   if (!lab) return h + `<div class="ban idle">Nanoszę etykiety…</div>`;
   let next = '';
@@ -913,15 +927,9 @@ function render() {
       });
     }
     el.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => { if (confirm('Usunąć z MOJE GRY?')) stopMy(b.dataset.stop); });
-    const ms = $('mSel'); if (ms) ms.onchange = () => { selK = +ms.value; tabN = 150; tabScroll = true; hlBet = -1; render(); };
     el.querySelectorAll('[data-ord]').forEach(b => b.onclick = () => { tabAsc = b.dataset.ord === '1'; try { localStorage.setItem(CFG.app + '_szukaj_v1_asc', tabAsc ? '1' : '0'); } catch (e) {} tabScroll = true; render(); });
     if (lab && tabScroll) { tabScroll = false; if (tabAsc) setTimeout(() => scrollTo(0, document.documentElement.scrollHeight), 0); }
-    const go = () => {
-      const v = $('selIn').value.trim().toUpperCase(), mm = /^([PN])(\d+)$/.exec(v), nb = POOLS[tgt].pool.length;
-      const k = mm ? (mm[1] === 'P' ? +mm[2] - 1 : nb + +mm[2] - 1) : -1;
-      if (mm && k >= 0 && k < P.length && (mm[1] === 'P' ? k < nb : true)) { selK = k; tabN = 150; render(); } else toast('Nie ma modelu ' + v);
-    };
-    if ($('selBtn')) { $('selBtn').onclick = go; $('selIn').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
+    doFlash(el);
     $('evChk') && ($('evChk').onchange = e => { tabEv = e.target.checked; render(); });
     const mb = $('moreBtn'); if (mb) mb.onclick = () => { const h0 = document.documentElement.scrollHeight, y0 = scrollY; tabN += 150; render(); if (tabAsc) scrollTo(0, y0 + document.documentElement.scrollHeight - h0); };
   }
