@@ -1,0 +1,29 @@
+# T60 SZUKAJ
+
+Wyszukiwarka modeli STEP → TRIGGER → zakład dla ciągu **Test60**. Osobna appka obok **T60 RAZEM**
+(własny adres, ikona i instalacja; nie otwiera się w oknie RAZEM).
+
+Adres: **https://px5060.github.io/szukaj60/**
+
+- **Kody** są wspólne z T60 RAZEM (ta sama domena, klucz `t60razem_v1_added`): kod wpisany tu widać w RAZEM i odwrotnie.
+  Import pliku eksportu z RAZEM: zakładka SZUKAJ → Import kodów.
+- **GRA**: modele w kryteriach (do 200 cykli max 5 BUST, do 300 max 9, do 400 max 11, ponad 400 max 11) na krokach
+  64 / 128 / 256 zł, w grupach wg liczby cykli; modele ponad 400 cykli (złota obwódka) tylko gdy są na kroku gry.
+- **TABELA**: wybrany model naniesiony na ciąg kodów (STEP, TRIGGER, zakład, WIN / BUST) + statystyki
+  (ostatni BUST, 2 BUST-y pod rząd, …) i przycisk **Gram ten model** → MOJE GRY (prowadzenie do WIN albo kroku 8).
+- **DZIENNIK**: rozliczenie podpowiedzi k5–k7 na nowych kodach (próg opłacalności 33,3%).
+- **SZUKAJ**: kryteria, szukanie kolejnych modeli w telefonie, import kodów.
+
+## Pliki
+
+```
+index.html            appka (generowana — nie edytować ręcznie)
+szukaj.webmanifest    PWA (zakres ./)
+szukaj-sw.js          service worker: strona zawsze z sieci
+szukaj-192/512.png    ikony
+szukaj/               narzędzia: silnik, szukanie puli, budowanie (szukaj/README.md)
+```
+
+Przebudowa: `cd szukaj && python3 build_szukaj.py t60`. Nowa pula (miliony modeli, wymaga numba):
+`python3 search.py t60 x1x 6000000 21 --dolacz` (dla T60 także `xx1`), potem build.
+Baza ciągu: `szukaj/seed_t60.txt` (MASTER_SEED z T60 RAZEM), dopisane kody PC: `szukaj/dopisane.txt`.
