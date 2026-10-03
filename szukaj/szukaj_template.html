@@ -39,12 +39,18 @@ main{padding:10px 12px 90px;max-width:760px;margin:0 auto}
 .sh b{font-size:14px}.sh .m{color:var(--mu);font-size:12px}
 .mc{border-left:5px solid var(--bd);background:var(--card);border-radius:8px;padding:7px 9px;margin-bottom:6px}
 .mc.k5{border-left-color:#2e75b6}.mc.k6{border-left-color:#7030a0}.mc.k7{border-left-color:var(--or)}
-.mc{cursor:pointer}
+.mc{cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.mc.hold{filter:brightness(1.35)}
+.pop{position:fixed;inset:0;z-index:50;background:#000b;display:flex;align-items:flex-end;justify-content:center}
+.pop .sheet{width:100%;max-width:760px;max-height:88vh;overflow:auto;background:var(--pan);border-top:3px solid var(--or);border-radius:14px 14px 0 0;padding:12px 14px 24px}
+.pop h3{margin:0 0 2px;font-size:18px}.pop .hs{color:var(--mu);font-size:12.5px;margin-bottom:6px}.pop .x{float:right;background:var(--card);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:4px 10px;font-size:15px}
+.spnow{background:var(--card);border-radius:8px;padding:6px 9px;font-size:13px;margin:6px 0}
 .flt{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:0 0 8px}.flt span{color:var(--mu);font-size:12px;width:44px}
 .flt .chip{padding:4px 10px;font-size:12.5px}
+.flt .chip.mine{border-color:var(--or);color:var(--or2)}.flt .chip.mine.on{background:var(--or);color:#fff}
 .sec.star{border-color:#ffd34d}
 .sec.mine{border-color:var(--or);box-shadow:0 0 0 1px var(--or) inset}
 .myh{color:var(--or2);font-size:12px;font-weight:700;margin-top:2px}
+.mc.msel{box-shadow:0 0 0 2px var(--or) inset}
 .mc.mwin{border-left-color:#5fd38a}.mc.mbust{border-left-color:#ff6666}
 .st.pw{background:#C6EFCE;color:#006100}.st.pb{background:#FF6666;color:#fff}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;font-size:13px;margin-top:8px}
@@ -147,6 +153,7 @@ th{color:var(--mu);font-weight:600}
 <nav>
   <button data-v="gra" class="on">GRA</button>
   <button data-v="tab">TABELA</button>
+  <button data-v="moje" id="navMine">MOJE</button>
   <button data-v="ust">SZUKAJ</button>
 </nav>
 <script id="wsrc" type="text/js-worker">
@@ -256,7 +263,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.7.2';
+const APP_VER = '2.10.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -279,6 +286,7 @@ let R = (() => { try { const r = JSON.parse(lsGet(LSK.rules, '')); if (r && r.ru
   return r; } } catch (e) {} return { rules: CFG.defRules, minCyc: CFG.minCyc }; })();
 let KS = (() => { try { const v = JSON.parse(lsGet(LSK.ks, '')); if (Array.isArray(v)) return v; } catch (e) {} return [5, 6, 7]; })();
 let view = 'gra', busy = false, searching = null, bandCap = {};
+let onlyMine = (() => { try { return localStorage.getItem(CFG.app + '_szukaj_v1_onlymine') === '1'; } catch (e) { return false; } })();   // GRA: tylko MOJE MODELE
 let BANDS = (() => { try { const v = JSON.parse(lsGet(LSK.bands, '')); if (Array.isArray(v)) return v; } catch (e) {} return R.rules.map((_, i) => i); })();
 function foundKey() { return LSK.found + tgt; }
 function getFound() { try { const v = JSON.parse(lsGet(foundKey(), '[]')); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
@@ -299,6 +307,40 @@ function startMy(k) {
   a.push({ m: P[k].slice(0, 5), id: mid(k, P[k]), start: codes.length, s0: r.bs + 1, t: Date.now() });
   setMy(a); toast(`Gram ${mid(k, P[k])} od kroku ${r.bs + 1} (${ST[r.bs]} zł) — w MOJE GRY do WIN / BUST`); render();
 }
+// ---- okno STATYSTYKI modelu (przytrzymanie karty): statystyki + „Gram ten model” → MOJE GRY ----
+let statK = null;
+function openStats(k) { statK = k; selK = k; tabN = 150; tabScroll = true; hlBet = -1; liveOn = true; needLabels(); renderSheet(); }
+function closeStats() { statK = null; const o = $('statPop'); if (o) o.remove(); }
+function renderSheet() {
+  if (statK === null) return;
+  let o = $('statPop');
+  if (!o) { o = document.createElement('div'); o.id = 'statPop'; o.className = 'pop'; document.body.appendChild(o); o.onclick = e => { if (e.target === o) closeStats(); }; }
+  const k = statK, m = P[k], r = lastEval ? lastEval.out[k] : null, ready = lab && selK === k && r;
+  const mine = isMine(k), g = mine ? getMy().find(x => specKey(x.m) === specKey(m)) : null, res = g ? myResult(g, r) : null;
+  const ph = !r ? '' : r.ph === 2 ? (r.wz === codes.length ? `GRA na następnym wierszu (w.${r.wz + 1})` : `zakład ustawiony na w.${r.wz + 1} (za ${r.wz + 1 - codes.length})`) : r.ph === 1 ? 'STEP otwarty — czekam na TRIGGER' : 'czekam na STEP';
+  o.innerHTML = `<div class="sheet"><button class="x" id="spX">✕</button>
+    <h3>Model ${mid(k, m)}</h3><div class="hs">${esc(ruleTxt(m))}</div>
+    ${r ? `<div class="spnow">Teraz: <b>krok ${r.bs + 1} · ${ST[r.bs]} zł</b> · ${ph}</div>` : ''}
+    ${!r ? '' : mine
+      ? `<button class="btn playing" id="spStop">${res ? (res.win ? '✔ WIN' : '✖ BUST') + ` — gra zakończona (${res.pnl >= 0 ? '+' : ''}${res.pnl} zł). Usuń z MOJE GRY` : `■ W MOJE GRY od w.${g.start + 1} (wejście k${g.s0}) — przestań śledzić`}</button>`
+      : `<button class="btn play" id="spPlay">▶ Gram ten model — dodaj do MOJE GRY (teraz krok ${r.bs + 1}, ${ST[r.bs]} zł)</button><div class="hint" style="margin-top:4px">Model zostanie w MOJE GRY na górze ekranu GRA do WIN albo kroku 8, niezależnie od kryteriów i filtrów.</div>`}
+    ${ready ? statsHtml(r) : '<div class="hint" style="margin-top:10px">Liczę statystyki…</div>'}
+    <button class="btn more" id="spTab" style="margin-top:10px">Otwórz TABELĘ tego modelu</button></div>`;
+  $('spX').onclick = closeStats;
+  $('spTab').onclick = () => { closeStats(); openTab(k); };
+  const p = $('spPlay'); if (p) p.onclick = () => { startMy(k); renderSheet(); };
+  const s = $('spStop'); if (s) s.onclick = () => { if (confirm('Usunąć z MOJE GRY?')) { stopMy(specKey(m)); renderSheet(); } };
+}
+// dotknięcie karty → TABELA; przytrzymanie (albo prawy klik) → STATYSTYKI
+function bindCard(c) {
+  const k = +c.dataset.mk; let t = null, lp = false, x0 = 0, y0 = 0;
+  const cancel = () => { clearTimeout(t); t = null; };
+  c.addEventListener('pointerdown', e => { lp = false; x0 = e.clientX; y0 = e.clientY; cancel(); t = setTimeout(() => { lp = true; c.classList.add('hold'); setTimeout(() => c.classList.remove('hold'), 250); openStats(k); }, 550); });
+  c.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) cancel(); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => c.addEventListener(ev, cancel));
+  c.addEventListener('contextmenu', e => { e.preventDefault(); cancel(); lp = true; openStats(k); });
+  c.onclick = () => { if (lp) { lp = false; return; } if (c.closest('.sec.mine')) openMine(k); else openTab(k); };
+}
 function stopMy(key) { setMy(getMy().filter(g => specKey(g.m) !== key)); render(); }
 function myResult(g, r) {   // null = gra trwa; inaczej wynik od wejścia (stawki gracza od kroku s0)
   if (!r || r.le < g.start) return null;
@@ -318,8 +360,8 @@ let selK = null, lab = null, labId = 0, labFor = '', tabN = 150, tabEv = false, 
 let tabAsc = (() => { try { return localStorage.getItem(CFG.app + '_szukaj_v1_asc') !== '0'; } catch (e) { return true; } })();   // najstarsze u góry   // TABELA: wybrany model + jego etykiety
 W.onmessage = e => {
   const d = e.data;
-  if (d.type === 'eval') { if (d.id !== evalId) return; lastEval = d; busy = false; render(); }
-  if (d.type === 'label') { if (d.id !== labId) return; lab = d; if (view === 'tab') render(); }
+  if (d.type === 'eval') { if (d.id !== evalId) return; lastEval = d; busy = false; render(); if (statK !== null) { needLabels(); renderSheet(); } }
+  if (d.type === 'label') { if (d.id !== labId) return; lab = d; if (view === 'tab' || view === 'moje') render(); if (statK !== null) renderSheet(); }
   if (d.type === 'prog') { searching = d; if (view === 'ust') render(); }
   if (d.type === 'search') {
     const f = getFound(), n = codes.length;
@@ -388,7 +430,7 @@ window.addEventListener('storage', e => { if (e.key === CFG.seedKey) syncFromRaz
 
 // ---- widoki ----
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
-  view = b.dataset.v; document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b)); render(); scrollTo(0, 0);
+  view = b.dataset.v; if (view === 'moje' || view === 'tab') { tabScroll = true; hlBet = -1; liveOn = true; } document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b)); render(); scrollTo(0, 0);
 });
 function renderTgt() {
   $('tgt').innerHTML = CFG.targets.length < 2 ? '' : CFG.targets.map(t => `<button class="chip ${t === tgt ? 'on' : ''}" data-t="${t}">BET ${t}</button>`).join('');
@@ -421,7 +463,7 @@ function card(k, m, r, kind) {
   const k5t = r.k5 ? `z k5: ${r.k5} wejść → W ${r.k5w} · BUST ${r.k5b}` : 'z k5: brak wejść';
   return `<div class="mc k${step}${isTop(r) ? ' ktop' : ''}" data-mk="${k}"><div class="h"><span class="id">${mid(k, m)}${isTop(r) ? ` <span class="top">★ ${topCyc()}+ cykli</span>` : ''}</span><span class="stk">krok ${step} · ${stake} zł</span></div>
     <div class="rule">${esc(ruleTxt(m))}</div>${st}
-    <div class="meta"><span>cykle ${cyc} · BUST ${r.nbu}/${lim === null ? '—' : lim} · <span class="${r.pnl >= 0 ? 'pos' : 'neg'}">${r.pnl >= 0 ? '+' : ''}${r.pnl} zł</span></span><span>${k5t}</span></div><div class="tapt">dotknij → TABELA z etykietami tego modelu</div></div>`;
+    <div class="meta"><span>cykle ${cyc} · BUST ${r.nbu}/${lim === null ? '—' : lim} · <span class="${r.pnl >= 0 ? 'pos' : 'neg'}">${r.pnl >= 0 ? '+' : ''}${r.pnl} zł</span></span><span>${k5t}</span></div><div class="tapt">dotknij → TABELA · przytrzymaj → STATYSTYKI i „Gram ten model”</div></div>`;
 }
 const ST = [8, 8, 16, 32, 64, 128, 256, 512];
 function limitFor(cyc) { for (const [mc, mb] of R.rules) if (mc === null || cyc <= mc) return mb; return null; }
@@ -453,6 +495,20 @@ function playLists() {   // modele w kryteriach na krokach KS, w grupach; ★ do
   B.forEach(l => l.sort(cmp)); pre.sort((a, b) => out[b].bs - out[a].bs);
   return { B, pre };
 }
+function myCardsHtml(out, my, myOn, selMine) {
+    let s = `<div class="sec mine"><div class="sh"><b>▶ MOJE GRY</b><span class="m">${myOn.length} w grze · do WIN albo kroku 8</span></div>`;
+    my.forEach(({ g, k }) => {
+      const r = out[k], res = myResult(g, r), key = specKey(g.m);
+      const head = `<div class="myh">od w.${g.start + 1} · wejście k${g.s0} ${ST[g.s0 - 1]} zł</div>`;
+      const sel = selMine === k ? ' msel' : '';
+      if (res) s += `<div class="mc ${res.win ? 'mwin' : 'mbust'}${sel}" data-mk="${k}"><div class="h"><span class="id">${mid(k, P[k])}</span><span class="stk">${res.win ? 'WIN' : 'BUST'}</span></div>${head}
+        <div class="st ${res.win ? 'pw' : 'pb'}">${res.win ? `WIN na kroku ${res.k} (${ST[res.k - 1]} zł) w w.${res.row + 1}` : `BUST na kroku 8 w w.${res.row + 1}`}<span class="s">Twój wynik od wejścia: ${res.pnl >= 0 ? '+' : ''}${res.pnl} zł</span></div>
+        <button class="btn more" data-stop="${esc(key)}">Zakończ — usuń z MOJE GRY</button></div>`;
+      else s += card(k, P[k], r, phaseOf(r)).replace('<div class="rule">', head + '<div class="rule">').replace('class="mc ', `class="mc${sel} `).replace('dotknij → TABELA ·', 'dotknij → tabela w MOJE ·') +
+        `<button class="btn more" data-stop="${esc(key)}" style="margin:-2px 0 8px">Przestań śledzić ${mid(k, P[k])}</button>`;
+    });
+  return s + '</div>';
+}
 function renderGra() {
   const n = codes.length;
   if (!lastEval) return `<div class="ban idle">Liczę ${P.length.toLocaleString('pl')} modeli…</div>`;
@@ -461,31 +517,23 @@ function renderGra() {
   out.forEach((r, k) => { if (qual(r)) { qn++; const s = r.bs + 1; if (s >= 5 && s <= 7 && r.ph === 2 && !isMine(k)) perK[s]++; } });   // liczniki = modele po TRIGGERZE
   const my = getMy().map(g => ({ g, k: myIndex(g) })).filter(x => x.k >= 0);
   const myOn = my.filter(x => !myResult(x.g, out[x.k]));
-  const graAll = [].concat(...B.filter((_, i) => BANDS.includes(i))).filter(k => phaseOf(out[k]) === 'gra')
+  const graAll = (onlyMine ? [] : [].concat(...B.filter((_, i) => BANDS.includes(i))).filter(k => phaseOf(out[k]) === 'gra'))
     .concat(myOn.filter(x => phaseOf(out[x.k]) === 'gra').map(x => x.k));
   const sum = graAll.reduce((s, k) => s + ST[out[k].bs], 0);
   let h = graAll.length
     ? `<div class="ban bet"><div class="big">NASTĘPNY WIERSZ (w.${n + 1}) = GRA na ${tgt}</div><div class="sub">${graAll.length} model(i) · suma stawek ${sum} zł${busy ? ' · przeliczam…' : ''}</div></div>`
     : `<div class="ban idle">w.${n + 1}: brak zakładu na krokach ${KS.map(k => ST[k - 1]).join('/')} zł${busy ? ' · przeliczam…' : ''}</div>`;
   h += lastCodes();
-  h += `<div class="flt"><span>krok:</span>${[5, 6, 7].map(k => `<button class="chip ${KS.includes(k) ? 'on' : ''}" data-k="${k}">${ST[k - 1]} zł · ${perK[k]}</button>`).join('')}</div>`;
+  h += `<div class="flt"><span>krok:</span>${[5, 6, 7].map(k => `<button class="chip ${KS.includes(k) ? 'on' : ''}" data-k="${k}">${ST[k - 1]} zł · ${perK[k]}</button>`).join('')}` +
+    `<button class="chip mine ${onlyMine ? 'on' : ''}" data-mine="1">▶ MOJE MODELE · ${my.length}</button></div>`;
   const shown = i => R.rules[i][0] !== null || B[i].length > 0;   // ★ 400+ tylko gdy model jest na kroku gry
-  h += `<div class="flt"><span>cykle:</span>${bandOrder().filter(shown).map(i => `<button class="chip ${BANDS.includes(i) ? 'on' : ''}" data-b="${i}">${bandShort(i)} · ${B[i].length}</button>`).join('')}</div>`;
-  h += `<div class="note">W kryteriach teraz: <b>${qn.toLocaleString('pl')}</b> z ${P.length.toLocaleString('pl')} modeli w puli. Niżej <b>tylko modele po TRIGGERZE</b> — zakład już ustawiony na krokach ${KS.map(k => ST[k - 1]).join('/')} zł, w grupach wg liczby cykli, najbliższa gra pierwsza. Dotknij karty → TABELA.</div>`;
-  if (my.length) {
-    let s = `<div class="sec mine"><div class="sh"><b>▶ MOJE GRY</b><span class="m">${myOn.length} w grze · do WIN albo kroku 8</span></div>`;
-    my.forEach(({ g, k }) => {
-      const r = out[k], res = myResult(g, r), key = specKey(g.m);
-      const head = `<div class="myh">od w.${g.start + 1} · wejście k${g.s0} ${ST[g.s0 - 1]} zł</div>`;
-      if (res) s += `<div class="mc ${res.win ? 'mwin' : 'mbust'}" data-mk="${k}"><div class="h"><span class="id">${mid(k, P[k])}</span><span class="stk">${res.win ? 'WIN' : 'BUST'}</span></div>${head}
-        <div class="st ${res.win ? 'pw' : 'pb'}">${res.win ? `WIN na kroku ${res.k} (${ST[res.k - 1]} zł) w w.${res.row + 1}` : `BUST na kroku 8 w w.${res.row + 1}`}<span class="s">Twój wynik od wejścia: ${res.pnl >= 0 ? '+' : ''}${res.pnl} zł</span></div>
-        <button class="btn more" data-stop="${esc(key)}">Zakończ — usuń z MOJE GRY</button></div>`;
-      else s += card(k, P[k], r, phaseOf(r)).replace('<div class="rule">', head + '<div class="rule">') +
-        `<button class="btn more" data-stop="${esc(key)}" style="margin:-2px 0 8px">Przestań śledzić ${mid(k, P[k])}</button>`;
-    });
-    h += s + '</div>';
-  }
+  if (!onlyMine) h += `<div class="flt"><span>cykle:</span>${bandOrder().filter(shown).map(i => `<button class="chip ${BANDS.includes(i) ? 'on' : ''}" data-b="${i}">${bandShort(i)} · ${B[i].length}</button>`).join('')}</div>`;
+  if (onlyMine) h += `<div class="note"><b>MOJE MODELE</b> — tylko modele, które grasz (${myOn.length} w grze${my.length > myOn.length ? `, ${my.length - myOn.length} zakończone` : ''}). Dotknij „▶ MOJE MODELE” jeszcze raz, żeby wrócić do wszystkich.</div>` +
+    (my.length ? '' : `<div class="empty" style="padding:10px 4px">Nie grasz jeszcze żadnego modelu. Przytrzymaj kartę modelu → „▶ Gram ten model”.</div>`);
+  else h += `<div class="note">W kryteriach teraz: <b>${qn.toLocaleString('pl')}</b> z ${P.length.toLocaleString('pl')} modeli w puli. Niżej <b>tylko modele po TRIGGERZE</b> — zakład już ustawiony na krokach ${KS.map(k => ST[k - 1]).join('/')} zł, w grupach wg liczby cykli, najbliższa gra pierwsza. Dotknij karty → TABELA.</div>`;
+  if (my.length) h += myCardsHtml(out, my, myOn);
   for (const i of bandOrder()) {
+    if (onlyMine) break;
     if (!BANDS.includes(i) || !shown(i)) continue;
     const L = B[i], cap = bandCap[i] || 15, isStar = R.rules[i][0] === null;
     const cnt = { gra: 0, czeka: 0, trig: 0, wait: 0 }; L.forEach(k => cnt[phaseOf(out[k])]++);
@@ -686,12 +734,24 @@ function statsHtml(r) {
     ${row('ostatni BUST', `${lb}`)}
     ${row('2 BUST-y pod rząd (cykl po cyklu)', `${two}`)}
     ${row('najdłuższa seria BUST pod rząd', `<b>${S.maxRun}</b>`)}
-    ${row('najbliższe 2 BUST-y', `<b>${S.minGap === null ? '—' : 'co ' + S.minGap + ' cykli'}</b>`)}
+    ${row('najbliższe 2 BUST-y', `<b>${S.minGap === null ? '—' : 'co ' + S.minGap + (S.minGap === 1 ? ' cykl (pod rząd)' : S.minGap <= 4 ? ' cykle' : ' cykli')}</b>`)}
     ${row('cykle, które doszły do k5 (64 zł)', `<b>${S.k5} → WIN ${S.k5w} · BUST ${S.b}${r && r.k5 > S.k5 ? ` · +1 w toku (teraz k${r.bs + 1})` : ''}</b>`)}
     ${row('WIN na krokach k1…k8', `<b>${S.wk.slice(1).join(' · ')}</b>`)}
     ${row('bilans modelu (K8 od k1)', `<b class="${r && r.pnl >= 0 ? 'ok' : 'bad'}">${r ? (r.pnl >= 0 ? '+' : '') + r.pnl + ' zł' : ''}</b>`)}
   </div><div class="hint" style="margin-top:6px">Ostatnie ${S.last.length} cykli (najnowszy z prawej):</div>
   <div class="seq">${S.last.map(e => e[0] === 1 ? `<i>W${e[2]}</i>` : '<i class="b">BUST</i>').join('')}</div>`;
+}
+let tabMine = false;   // TABELA wewnątrz zakładki MOJE (bez listy wyboru — wybór kartą)
+function openMine(k) { selK = k; tabN = 150; tabScroll = true; hlBet = -1; liveOn = true; view = 'moje'; document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x.dataset.v === 'moje')); scrollTo(0, 0); render(); }
+function renderMoje() {
+  if (!lastEval) return `<div class="ban idle">Liczę…</div>`;
+  const out = lastEval.out, my = getMy().map(g => ({ g, k: myIndex(g) })).filter(x => x.k >= 0), myOn = my.filter(x => !myResult(x.g, out[x.k]));
+  if (!my.length) return `<div class="note"><b>MOJE MODELE</b> — nie grasz jeszcze żadnego modelu.<br>Na ekranie GRA przytrzymaj kartę modelu → „▶ Gram ten model”.</div>`;
+  if (!my.some(x => x.k === selK)) { selK = (myOn[0] || my[0]).k; needLabels(); }
+  tabMine = true;
+  const h = myCardsHtml(out, my, myOn, selK) + `<div class="note" style="margin-top:4px">Tabela modelu <b>${mid(selK, P[selK])}</b> — dotknij innej karty wyżej, żeby zmienić model.</div>` + renderTab();
+  tabMine = false;
+  return h;
 }
 function renderTab() {
   const n = codes.length;
@@ -712,8 +772,8 @@ function renderTab() {
     ${!r ? '' : isMine(selK) ? (() => { const g = getMy().find(x => specKey(x.m) === specKey(m)), res = myResult(g, r);
         return `<button class="btn playing" data-stop="${esc(specKey(m))}">${res ? (res.win ? '✔ WIN' : '✖ BUST') + ` — zakończona (${res.pnl >= 0 ? '+' : ''}${res.pnl} zł). Usuń z MOJE GRY` : `■ Gram od w.${g.start + 1} (wejście k${g.s0}) — przestań śledzić`}</button>`; })()
       : `<button class="btn play" id="playBtn">▶ Gram ten model — śledź do WIN / kroku 8 (teraz krok ${r.bs + 1}, ${ST[r.bs]} zł)</button>`}
-    <div class="selrow"><input id="selIn" placeholder="numer modelu, np. P3406" autocomplete="off"><button class="btn" id="selBtn">Pokaż</button></div>
-    <div class="hint" style="margin-top:8px">Wybierz model z listy (po TRIGGERZE, zakład na krokach ${KS.map(k => ST[k - 1]).join('/')} zł):</div>${sel}
+    ${tabMine ? '' : `<div class="selrow"><input id="selIn" placeholder="numer modelu, np. P3406" autocomplete="off"><button class="btn" id="selBtn">Pokaż</button></div>
+    <div class="hint" style="margin-top:8px">Wybierz model z listy (po TRIGGERZE, zakład na krokach ${KS.map(k => ST[k - 1]).join('/')} zł):</div>${sel}`}
     <div class="leg">${[['L3', 'STEP'], ['L4', 'TRIGGER'], ['L5', 'czekam na grę'], ['Lnx', '▶ następny = GRA'], ['L6', 'WIN'], ['L7', 'przegrana'], ['L8', 'BUST'], ['L9', 'seria przerwana']].map(([c, t]) => `<span class="lab ${c}">${t}</span>`).join('')}
     <span class="lab" style="background:var(--or);color:#fff;font-weight:700">GRA = Twój zakład (k${KS.join('/k')}, model w kryteriach)</span></div>
     <label class="hint" style="display:block;margin-top:6px"><input type="checkbox" id="evChk" ${tabEv ? 'checked' : ''}> tylko zdarzenia (bez „czekam…”)</label></div>`;
@@ -785,8 +845,10 @@ function render() {
   try { document.documentElement.style.setProperty('--hdrH', document.querySelector('header').offsetHeight + 'px'); } catch (e) {}
   $('hdrN').textContent = `Nr ${codes.length.toLocaleString('pl')} · BET ${tgt}`;
   const el = $('main');
-  el.innerHTML = view === 'gra' ? renderGra() : view === 'tab' ? renderTab() : renderUst();
-  if (view === 'tab') {
+  el.innerHTML = view === 'gra' ? renderGra() : view === 'tab' ? renderTab() : view === 'moje' ? renderMoje() : renderUst();
+  const nm = $('navMine'); if (nm) nm.textContent = `MOJE · ${getMy().length}`;
+  if (view === 'moje') el.querySelectorAll('[data-mk]').forEach(bindCard);
+  if (view === 'tab' || view === 'moje') {
     const pb2 = $('playBtn'); if (pb2) pb2.onclick = () => startMy(selK);
     if (lab) {
       applyHL(el);
@@ -808,20 +870,21 @@ function render() {
       const k = mm ? (mm[1] === 'P' ? +mm[2] - 1 : nb + +mm[2] - 1) : -1;
       if (mm && k >= 0 && k < P.length && (mm[1] === 'P' ? k < nb : true)) { selK = k; tabN = 150; render(); } else toast('Nie ma modelu ' + v);
     };
-    $('selBtn').onclick = go; $('selIn').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
-    $('evChk').onchange = e => { tabEv = e.target.checked; render(); };
+    if ($('selBtn')) { $('selBtn').onclick = go; $('selIn').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); }
+    $('evChk') && ($('evChk').onchange = e => { tabEv = e.target.checked; render(); });
     const mb = $('moreBtn'); if (mb) mb.onclick = () => { const h0 = document.documentElement.scrollHeight, y0 = scrollY; tabN += 150; render(); if (tabAsc) scrollTo(0, y0 + document.documentElement.scrollHeight - h0); };
   }
   if (view === 'gra') {
     el.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
       const k = +b.dataset.k; KS = KS.includes(k) ? KS.filter(x => x !== k) : [...KS, k].sort(); lsSet(LSK.ks, JSON.stringify(KS)); render();
     });
+    el.querySelectorAll('[data-mine]').forEach(b => b.onclick = () => { onlyMine = !onlyMine; try { localStorage.setItem(CFG.app + '_szukaj_v1_onlymine', onlyMine ? '1' : '0'); } catch (e) {} render(); scrollTo(0, 0); });
     el.querySelectorAll('[data-b]').forEach(b => b.onclick = () => {
       const i = +b.dataset.b; BANDS = BANDS.includes(i) ? BANDS.filter(x => x !== i) : [...BANDS, i]; lsSet(LSK.bands, JSON.stringify(BANDS)); render();
     });
     el.querySelectorAll('[data-stop]').forEach(b => b.onclick = e => { e.stopPropagation(); if (confirm('Usunąć z MOJE GRY?')) stopMy(b.dataset.stop); });
     el.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const i = +b.dataset.more; bandCap[i] = (bandCap[i] || 15) + 30; render(); });
-    el.querySelectorAll('[data-mk]').forEach(c => c.onclick = () => openTab(+c.dataset.mk));
+    el.querySelectorAll('[data-mk]').forEach(bindCard);
   }
   if (view === 'ust') {
     $('saveR').onclick = () => {
