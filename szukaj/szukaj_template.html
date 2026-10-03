@@ -72,7 +72,7 @@ main{padding:10px 12px 90px;max-width:760px;margin:0 auto}
 .pos{color:var(--gr);font-weight:700}.neg{color:var(--rd);font-weight:700}
 .empty{color:var(--mu);font-size:13px;padding:6px 4px}
 .more{display:block;width:100%;margin-top:4px}
-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--pan);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom)}
+nav{position:fixed;bottom:0;left:0;right:0;z-index:30;display:flex;background:var(--pan);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom)}
 nav button{flex:1;background:none;border:0;color:var(--mu);padding:12px 0;font-size:14px;font-weight:700}
 nav button.on{color:var(--or2)}
 table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
@@ -107,6 +107,8 @@ th{color:var(--mu);font-weight:600}
 .tbl tr.hl-trig{outline:3px solid #4da3ff;background:rgba(77,163,255,.12)}
 .tbl tr.hl-step.hl-trig{outline:3px solid #4da3ff;background:repeating-linear-gradient(135deg,rgba(255,211,77,.22) 0 10px,rgba(77,163,255,.22) 10px 20px)}
 .tbl tr.hl-wait{outline:2px dashed #9aa3b5}
+.tbl tr.hl-spart{outline:3px dashed #ffd34d;outline-offset:-3px}.tbl tr.hl-tpart{outline:3px dashed #4da3ff;outline-offset:-3px}
+.sw.s1p{border:2px dashed #ffd34d}.sw.s2p{border:2px dashed #4da3ff}
 .tbl tr.hl-wait.hl-pre{outline:3px solid #ff6600;background:rgba(255,102,0,.12)}
 .tbl tr.hl-win{outline:3px solid #5fd38a;background:rgba(95,211,138,.12)}
 .tbl tr.hl-loss{outline:3px solid #ff6666;background:rgba(255,102,102,.12)}
@@ -254,7 +256,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.5.0';
+const APP_VER = '2.7.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -444,9 +446,9 @@ function playLists() {   // modele w kryteriach na krokach KS, w grupach; ★ do
   out.forEach((r, k) => {
     if (!qual(r) || mine.has(k)) return;
     const b = bandOf(r);
-    if (KS.includes(r.bs + 1)) B[b].push(k); else if (isTop(r)) pre.push(k);
+    if (KS.includes(r.bs + 1) && r.ph === 2) B[b].push(k);   // tylko po TRIGGERZE: zakład ustawiony / GRA na następnym
   });
-  const cmp = (a, b) => (PHASE_ORD[phaseOf(out[a])] - PHASE_ORD[phaseOf(out[b])]) || (out[b].bs - out[a].bs) || (rankKey(out[a]) - rankKey(out[b]));
+  const cmp = (a, b) => (out[a].wz - out[b].wz) || (out[b].bs - out[a].bs) || (rankKey(out[a]) - rankKey(out[b]));   // najbliższa gra pierwsza
   B.forEach(l => l.sort(cmp)); pre.sort((a, b) => out[b].bs - out[a].bs);
   return { B, pre };
 }
@@ -455,7 +457,7 @@ function renderGra() {
   if (!lastEval) return `<div class="ban idle">Liczę ${P.length.toLocaleString('pl')} modeli…</div>`;
   const out = lastEval.out, { B } = playLists();
   const perK = { 5: 0, 6: 0, 7: 0 }; let qn = 0;
-  out.forEach(r => { if (qual(r)) { qn++; const s = r.bs + 1; if (s >= 5 && s <= 7) perK[s]++; } });
+  out.forEach((r, k) => { if (qual(r)) { qn++; const s = r.bs + 1; if (s >= 5 && s <= 7 && r.ph === 2 && !isMine(k)) perK[s]++; } });   // liczniki = modele po TRIGGERZE
   const my = getMy().map(g => ({ g, k: myIndex(g) })).filter(x => x.k >= 0);
   const myOn = my.filter(x => !myResult(x.g, out[x.k]));
   const graAll = [].concat(...B.filter((_, i) => BANDS.includes(i))).filter(k => phaseOf(out[k]) === 'gra')
@@ -468,7 +470,7 @@ function renderGra() {
   h += `<div class="flt"><span>krok:</span>${[5, 6, 7].map(k => `<button class="chip ${KS.includes(k) ? 'on' : ''}" data-k="${k}">${ST[k - 1]} zł · ${perK[k]}</button>`).join('')}</div>`;
   const shown = i => R.rules[i][0] !== null || B[i].length > 0;   // ★ 400+ tylko gdy model jest na kroku gry
   h += `<div class="flt"><span>cykle:</span>${bandOrder().filter(shown).map(i => `<button class="chip ${BANDS.includes(i) ? 'on' : ''}" data-b="${i}">${bandShort(i)} · ${B[i].length}</button>`).join('')}</div>`;
-  h += `<div class="note">W kryteriach teraz: <b>${qn.toLocaleString('pl')}</b> z ${P.length.toLocaleString('pl')} modeli w puli. Niżej grupy wg liczby cykli — w każdej modele na krokach ${KS.map(k => ST[k - 1]).join('/')} zł, najpierw te z GRĄ na następnym wierszu. Dotknij karty → TABELA.</div>`;
+  h += `<div class="note">W kryteriach teraz: <b>${qn.toLocaleString('pl')}</b> z ${P.length.toLocaleString('pl')} modeli w puli. Niżej <b>tylko modele po TRIGGERZE</b> — zakład już ustawiony na krokach ${KS.map(k => ST[k - 1]).join('/')} zł, w grupach wg liczby cykli, najbliższa gra pierwsza. Dotknij karty → TABELA.</div>`;
   if (my.length) {
     let s = `<div class="sec mine"><div class="sh"><b>▶ MOJE GRY</b><span class="m">${myOn.length} w grze · do WIN albo kroku 8</span></div>`;
     my.forEach(({ g, k }) => {
@@ -486,9 +488,9 @@ function renderGra() {
     if (!BANDS.includes(i) || !shown(i)) continue;
     const L = B[i], cap = bandCap[i] || 15, isStar = R.rules[i][0] === null;
     const cnt = { gra: 0, czeka: 0, trig: 0, wait: 0 }; L.forEach(k => cnt[phaseOf(out[k])]++);
-    let s = `<div class="sec${isStar ? ' star' : ''}"><div class="sh"><b>${bandName(i)}</b><span class="m">${L.length} na k${KS.join('/k')}</span></div>
-      <div class="hint" style="margin:-2px 2px 6px">GRA ${cnt.gra} · ustawiony ${cnt.czeka} · STEP otwarty ${cnt.trig} · czeka na STEP ${cnt.wait}</div>`;
-    if (!L.length) s += `<div class="empty">brak modelu z tej grupy na krokach ${KS.map(k => ST[k - 1]).join('/')} zł</div>`;
+    let s = `<div class="sec${isStar ? ' star' : ''}"><div class="sh"><b>${bandName(i)}</b><span class="m">${L.length} po TRIGGERZE</span></div>
+      <div class="hint" style="margin:-2px 2px 6px">GRA na następnym ${cnt.gra} · zakład za kilka wierszy ${cnt.czeka}</div>`;
+    if (!L.length) s += `<div class="empty">teraz żaden model z tej grupy nie ma TRIGGERA na krokach ${KS.map(k => ST[k - 1]).join('/')} zł</div>`;
     L.slice(0, cap).forEach(k => s += card(k, P[k], out[k], phaseOf(out[k])));
     if (L.length > cap) s += `<button class="btn more" data-more="${i}">Pokaż więcej z tej grupy (${L.length - cap})</button>`;
     h += s + '</div>';
@@ -542,16 +544,75 @@ function betOf(i) {   // który zakład wskazuje wiersz i (dla kliknięcia)
   return -1;
 }
 const rng = a => a.length ? (a.length === 1 || a[0] === a[a.length - 1] ? `w.${a[0] + 1}` : `w.${a[0] + 1}–${a[a.length - 1] + 1}`) : '—';
+// ---- stan bieżący: ile wierszy NAJWCZEŚNIEJ do gry (dokładnie wg reguł modelu, z uwzględnieniem STEP-u, który już się wydarzył) ----
+function minToBet(m, r) {
+  const n = codes.length, sp = partsOf(m[1]), tp = partsOf(m[3]), x = m[2], off = m[4];
+  if (r.ph === 2) return { d: r.wz - (n - 1), trigAt: null };
+  const A = AL.length, S = sp.map(p => AL.map(c => pm(p, c))), T = tp.map(p => AL.map(c => pm(p, c)));
+  const hitP = (Pt, prev, c) => Pt.length === 1 ? Pt[0][c] : (prev >= 0 && Pt[0][prev] && Pt[1][c]);
+  let q = [[r.ph, r.cnt, AL.indexOf(codes[n - 1])]]; const seen = new Set();
+  for (let d = 1; d <= 80 && q.length; d++) {
+    const nq = [];
+    for (const [st, cnt, prev] of q) for (let c = 0; c < A; c++) {
+      if (st === 1) { if (hitP(T, prev, c)) return { d: d + off, trigAt: d }; const k = '1|0|' + c; if (!seen.has(k)) { seen.add(k); nq.push([1, 0, c]); } }
+      else { let s2 = 0, c2 = 0; if (hitP(S, prev, c)) { c2 = cnt + 1; if (c2 >= x) { s2 = 1; c2 = 0; } } const k = s2 + '|' + c2 + '|' + c; if (!seen.has(k)) { seen.add(k); nq.push([s2, c2, c]); } }
+    }
+    q = nq;
+  }
+  return null;
+}
+function liveChain(m, r) {   // wiersze bieżącego łańcucha (po ostatnim zakładzie)
+  const n = codes.length, sp = partsOf(m[1]), tp = partsOf(m[3]), x = m[2], off = m[4], last = n - 1;
+  const o = { step: [], stepPart: [], trig: [], trigPart: [], wait: [] };
+  const stepRows = s => sp.length === 2 ? [s - 1, s] : Array.from({ length: x }, (_, q) => s - x + 1 + q);
+  if (r.ph === 2) {
+    const t = r.wz - off; let s = -1; for (let j = t - 1; j >= 0; j--) if (lab.K[j] === 3) { s = j; break; }
+    if (s >= 0) o.step = stepRows(s);
+    o.trig = tp.length === 2 ? [t - 1, t] : [t];
+    for (let j = t + 1; j <= last; j++) o.wait.push(j);
+  } else if (r.ph === 1) {
+    o.step = stepRows(r.srow);
+    if (tp.length === 2 && pm(tp[0], codes[last]) && last >= r.srow) o.trigPart = [last];
+  } else {
+    if (sp.length === 1 && r.cnt > 0) for (let j = last - r.cnt + 1; j <= last; j++) o.stepPart.push(j);
+    if (sp.length === 2 && pm(sp[0], codes[last])) o.stepPart = [last];
+  }
+  return o;
+}
+function liveHtml(m, r) {
+  const n = codes.length, x = m[2], sp = partsOf(m[1]), tp = partsOf(m[3]), L = liveChain(m, r), mb = minToBet(m, r);
+  const when = mb ? `w.${n + mb.d} — <b>za ${mb.d} ${mb.d === 1 ? 'wiersz' : mb.d <= 4 ? 'wiersze' : 'wierszy'}</b>` : '—';
+  let what;
+  if (r.ph === 2) what = `TRIGGER był (${rng(L.trig)}) → <b>GRA k${r.bs + 1} ${ST[r.bs]} zł na ${tgt}</b> na ${when}`;
+  else if (r.ph === 1) {
+    const tc = trigNext(m);
+    what = `STEP spełniony (${rng(L.step)}) → czekam na TRIGGER <b>${m[3]}</b>` + (L.trigPart.length ? ` · 1. kod TRIGGER-a już jest (w.${n})` : '') +
+      `<br>${tc.length ? `jeśli w.${n + 1} = <b>${tc.join(', ')}</b> → ` : ''}najwcześniej GRA na ${when}`;
+  } else {
+    const need = sp.length === 2 ? (L.stepPart.length ? `brakuje 2. kodu STEP-u (${sp[1]})` : `potrzeba 2 kodów STEP-u: ${sp[0]} → ${sp[1]}`)
+      : `STEP ${r.cnt}/${x}${r.cnt ? ` (${rng(L.stepPart)})` : ''} — brakuje ${x - r.cnt} ${x - r.cnt === 1 ? 'kodu' : 'kodów'} z grupy ${m[1]}`;
+    what = `czekam na STEP · ${need}<br>potem TRIGGER ${m[3]}, potem +${m[4]} → najwcześniej GRA na ${when}`;
+  }
+  return `<b>TERAZ (krok ${r.bs + 1}, ${ST[r.bs]} zł):</b> ${what}<div class="hlrow">` +
+    (L.step.length ? `<span class="sw s1">STEP ${rng(L.step)}</span>` : '') + (L.stepPart.length ? `<span class="sw s1p">STEP w toku ${rng(L.stepPart)}</span>` : '') +
+    (L.trig.length ? `<span class="sw s2">TRIGGER ${rng(L.trig)}</span>` : '') + (L.trigPart.length ? `<span class="sw s2p">1. kod TRIGGER-a w.${n}</span>` : '') +
+    (L.wait.length ? `<span class="sw s3">czekanie ${rng(L.wait)}</span>` : '') + `</div><div class="hl0" style="margin-top:4px">Dotknij „▶ NASTĘPNY WIERSZ = GRA” wyżej, żeby zobaczyć łańcuch dawnego zakładu.</div>`;
+}
 function applyHL(el) {
-  el.querySelectorAll('tr[data-i]').forEach(r => r.classList.remove('hl-step', 'hl-trig', 'hl-wait', 'hl-pre', 'hl-win', 'hl-loss'));
+  el.querySelectorAll('tr[data-i]').forEach(r => r.classList.remove('hl-step', 'hl-trig', 'hl-wait', 'hl-pre', 'hl-win', 'hl-loss', 'hl-spart', 'hl-tpart'));
   const box = el.querySelector('#hlInfo'); if (!box) return;
-  if (hlBet < 0 || !lab || !(lab.K[hlBet] >= 6 && lab.K[hlBet] <= 8)) { box.innerHTML = '<span class="hl0">Dotknij wiersza „▶ NASTĘPNY WIERSZ = GRA” albo wiersza zakładu — podświetlę STEP, TRIGGER i czekanie, które dały tę grę.</span>'; return; }
-  const c = betChain(hlBet), win = lab.K[hlBet] === 6, a = lab.A[hlBet], add = (arr, cl) => arr.forEach(j => { const r = el.querySelector(`tr[data-i="${j}"]`); if (r) r.classList.add(cl); });
+  const add = (arr, cl) => arr.forEach(j => { const r = el.querySelector(`tr[data-i="${j}"]`); if (r) r.classList.add(cl); });
+  if (hlBet < 0 || !lab || !(lab.K[hlBet] >= 6 && lab.K[hlBet] <= 8)) {   // domyślnie: bieżący łańcuch
+    const m = P[selK], r = lastEval && lastEval.out[selK]; if (!lab || !r) { box.innerHTML = ''; return; }
+    const L = liveChain(m, r); add(L.step, 'hl-step'); add(L.stepPart, 'hl-spart'); add(L.trig, 'hl-trig'); add(L.trigPart, 'hl-tpart'); add(L.wait, 'hl-wait');
+    box.innerHTML = liveHtml(m, r); return;
+  }
+  const c = betChain(hlBet), win = lab.K[hlBet] === 6, a = lab.A[hlBet];
   add(c.step, 'hl-step'); add(c.trig, 'hl-trig'); add(c.wait, 'hl-wait'); add([c.pre], 'hl-pre'); add([c.bet], win ? 'hl-win' : 'hl-loss');
   const res = win ? 'WIN' : lab.K[hlBet] === 8 ? 'BUST' : 'przegrana';
   box.innerHTML = `<b>Zakład w.${hlBet + 1}: GRA k${a} ${ST[a - 1]} zł → ${res}</b><div class="hlrow">
     <span class="sw s1">STEP ${rng(c.step)}</span><span class="sw s2">TRIGGER ${rng(c.trig)}</span>${c.wait.filter(j => j !== c.pre).length ? `<span class="sw s3">czekanie ${rng(c.wait.filter(j => j !== c.pre))}</span>` : ''}<span class="sw s4">▶ następny w.${c.pre + 1}</span><span class="sw ${win ? 's5' : 's6'}">GRA w.${hlBet + 1}</span></div>
-    <button class="btn more" id="hlClr" style="margin-top:6px">Wyczyść podświetlenie</button>`;
+    <button class="btn more" id="hlClr" style="margin-top:6px">Wróć do stanu TERAZ</button>`;
   el.querySelector('#hlClr').onclick = () => { hlBet = -1; applyHL(el); };
 }
 function betWhy(b) {
@@ -633,10 +694,10 @@ function renderTab() {
   const pl = lastEval ? playLists() : { B: R.rules.map(() => []), pre: [] };
   if (selK === null || selK >= P.length) { const f = [].concat(...bandOrder().map(i => pl.B[i])); selK = f.length ? f[0] : 0; }
   const o = lastEval ? lastEval.out : null;
-  const opt = k => `<option value="${k}" ${k === selK ? 'selected' : ''}>${mid(k, P[k])} · k${o[k].bs + 1} ${ST[o[k].bs]} zł · ${PHASE_TXT[phaseOf(o[k])]} · ${o[k].nw + o[k].nbu} cykli / ${o[k].nbu} BUST</option>`;
+  const opt = k => `<option value="${k}" ${k === selK ? 'selected' : ''}>${mid(k, P[k])} · k${o[k].bs + 1} ${ST[o[k].bs]} zł · ${o[k].ph === 2 ? (o[k].wz === n ? 'GRA na następnym' : `zakład za ${o[k].wz + 1 - n} (w.${o[k].wz + 1})`) : PHASE_TXT[phaseOf(o[k])]} · ${o[k].nw + o[k].nbu} cykli / ${o[k].nbu} BUST</option>`;
   const inList = o && pl.B.some(l => l.includes(selK));
   const sel = !o ? '' : `<select id="mSel" class="msel">${inList ? '' : `<option value="${selK}" selected>${mid(selK, P[selK])} (wybrany numerem)</option>`}` +
-    bandOrder().filter(i => pl.B[i].length || R.rules[i][0] !== null).map(i => `<optgroup label="${bandName(i)} — ${pl.B[i].length} na k${KS.join('/k')}">${pl.B[i].map(opt).join('')}</optgroup>`).join('') +
+    bandOrder().filter(i => pl.B[i].length || R.rules[i][0] !== null).map(i => `<optgroup label="${bandName(i)} — ${pl.B[i].length} po TRIGGERZE">${pl.B[i].map(opt).join('')}</optgroup>`).join('') +
     `</select>`;
   needLabels();
   const m = P[selK], r = lastEval ? lastEval.out[selK] : null;
@@ -648,7 +709,7 @@ function renderTab() {
         return `<button class="btn playing" data-stop="${esc(specKey(m))}">${res ? (res.win ? '✔ WIN' : '✖ BUST') + ` — zakończona (${res.pnl >= 0 ? '+' : ''}${res.pnl} zł). Usuń z MOJE GRY` : `■ Gram od w.${g.start + 1} (wejście k${g.s0}) — przestań śledzić`}</button>`; })()
       : `<button class="btn play" id="playBtn">▶ Gram ten model — śledź do WIN / kroku 8 (teraz krok ${r.bs + 1}, ${ST[r.bs]} zł)</button>`}
     <div class="selrow"><input id="selIn" placeholder="numer modelu, np. P3406" autocomplete="off"><button class="btn" id="selBtn">Pokaż</button></div>
-    <div class="hint" style="margin-top:8px">Wybierz model z listy (grupy wg cykli, modele na krokach ${KS.map(k => ST[k - 1]).join('/')} zł):</div>${sel}
+    <div class="hint" style="margin-top:8px">Wybierz model z listy (po TRIGGERZE, zakład na krokach ${KS.map(k => ST[k - 1]).join('/')} zł):</div>${sel}
     <div class="leg">${[['L3', 'STEP'], ['L4', 'TRIGGER'], ['L5', 'czekam na grę'], ['Lnx', '▶ następny = GRA'], ['L6', 'WIN'], ['L7', 'przegrana'], ['L8', 'BUST'], ['L9', 'seria przerwana']].map(([c, t]) => `<span class="lab ${c}">${t}</span>`).join('')}
     <span class="lab" style="background:var(--or);color:#fff;font-weight:700">GRA = Twój zakład (k${KS.join('/k')}, model w kryteriach)</span></div>
     <label class="hint" style="display:block;margin-top:6px"><input type="checkbox" id="evChk" ${tabEv ? 'checked' : ''}> tylko zdarzenia (bez „czekam…”)</label></div>`;
@@ -658,6 +719,7 @@ function renderTab() {
     if (r.ph === 2) next = r.wz === n ? `GRAJ k${r.bs + 1} ${ST[r.bs]} zł na ${tgt}` : `zakład k${r.bs + 1} ${ST[r.bs]} zł na w.${r.wz + 1}`;
     else if (r.ph === 1) { const tc = trigNext(m); next = tc.length ? `TRIGGER jeśli wpadnie ${tc.join(', ')} → k${r.bs + 1} ${ST[r.bs]} zł na w.${n + 1 + m[4]}` : 'czekam na TRIGGER'; }
     else next = 'czekam na STEP';
+    if (r.ph !== 2 || r.wz !== n) { const mb = minToBet(m, r); if (mb) next += r.ph === 2 ? ` — za ${mb.d}` : ` · najwcześniej GRA na w.${n + mb.d} (za ${mb.d})`; }
   }
   const myNext = r && r.ph === 2 && r.wz === n && KS.includes(r.bs + 1) && qual(r);
   const nextRow = `<tr class="nextr"><td class="nr">${n + 1}</td><td class="kd">?</td><td class="g ${myNext ? 'my' : 'dim'}">${myNext ? 'GRA ' + ST[r.bs] : ''}</td><td><span class="lab Lnext">następny: ${esc(next)}</span></td></tr>`;
@@ -725,7 +787,7 @@ function render() {
     if (lab) {
       applyHL(el);
       el.querySelectorAll('tr[data-i]').forEach(r => r.onclick = () => {
-        const b = betOf(+r.dataset.i); if (b < 0) return;
+        const b = betOf(+r.dataset.i); if (b < 0 || b >= codes.length) { if (hlBet >= 0) { hlBet = -1; applyHL(el); } return; }
         hlBet = hlBet === b ? -1 : b; applyHL(el);
       });
     }
