@@ -131,7 +131,7 @@ th{color:var(--mu);font-weight:600}
 .hlinfo .hl0{color:#8b93a7}.hlrow{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
 .sw{border-radius:5px;padding:2px 7px;font-weight:700;font-size:12px;color:#e8ebf2;border:2px solid}
 .sw.s1{border-color:#ffd34d}.sw.s2{border-color:#4da3ff}.sw.s3{border:2px dashed #9aa3b5}.sw.s4{border-color:#ff6600}.sw.s5{border-color:#5fd38a}.sw.s6{border-color:#ff6666}
-.ordr{display:flex;gap:6px;margin:0 0 8px}.ordr .chip{padding:4px 10px;font-size:12.5px}
+.ordr{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px}.ordr .evl{margin:0 0 0 auto;white-space:nowrap}.ordr .chip{padding:4px 10px;font-size:12.5px}
 .expl{background:#1f2533;border:1px solid #3d4760;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12.5px;color:#c9cfdc}
 .expl .et{font-weight:800;color:var(--tx);margin-bottom:4px}.expl ol{margin:0;padding-left:18px}.expl li{margin-bottom:3px}.expl b{color:var(--tx)}
 .L0,.L1{color:#8b93a7}.L2,.L3{background:#FFF2CC;color:#7F6000}.L3{font-weight:700}
@@ -272,7 +272,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.14.0';
+const APP_VER = '2.15.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -822,14 +822,7 @@ function renderTab() {
   const o = lastEval ? lastEval.out : null;
   needLabels();
   const m = P[selK], r = lastEval ? lastEval.out[selK] : null;
-  let h = `<div class="sec"><div class="sh"><b>Model ${mid(selK, m)}</b><span class="m">${r ? `cykle ${r.nw + r.nbu} · BUST ${r.nbu} · ${r.pnl >= 0 ? '+' : ''}${r.pnl} zł · ${qual(r) ? 'w kryteriach' : 'POZA kryteriami'}` : ''}</span></div>
-    <div style="color:#c9cfdc;font-size:12.5px">${esc(ruleTxt(m))}</div>
-    ${explainHtml(m)}
-    ${statsHtml(r)}
-    ${!r ? '' : isMine(selK) ? (() => { const g = getMy().find(x => specKey(x.m) === specKey(m)), res = myResult(g, r);
-        return `<button class="btn playing" data-stop="${esc(specKey(m))}">${res ? (res.win ? '✔ WIN' : '✖ BUST') + ` — zakończona (${res.pnl >= 0 ? '+' : ''}${res.pnl} zł). Usuń z MOJE GRY` : `■ Gram od w.${g.start + 1} (wejście k${g.s0}) — przestań śledzić`}</button>`; })()
-      : `<button class="btn play" id="playBtn">▶ Gram ten model — śledź do WIN / kroku 8 (teraz krok ${r.bs + 1}, ${ST[r.bs]} zł)</button>`}
-    <label class="hint" style="display:block;margin-top:6px"><input type="checkbox" id="evChk" ${tabEv ? 'checked' : ''}> tylko zdarzenia (bez „czekam…”)</label></div>`;
+  let h = '';   // statystyki schowane — otwiera je przytrzymanie wiersza tabeli albo karty modelu
   if (!lab) return h + `<div class="ban idle">Nanoszę etykiety…</div>`;
   let next = '';
   if (r) {
@@ -855,7 +848,7 @@ function renderTab() {
     shown++;
   }
   const more = i >= 0 ? `<button class="btn more" id="moreBtn">Pokaż starsze (+150)</button>` : '';
-  const ord = `<div class="ordr"><button class="chip ${tabAsc ? 'on' : ''}" data-ord="1">↓ czas płynie w dół</button><button class="chip ${tabAsc ? '' : 'on'}" data-ord="0">najnowsze u góry</button></div>`;
+  const ord = `<div class="ordr"><button class="chip ${tabAsc ? 'on' : ''}" data-ord="1">↓ czas płynie w dół</button><button class="chip ${tabAsc ? '' : 'on'}" data-ord="0">najnowsze u góry</button><label class="hint evl"><input type="checkbox" id="evChk" ${tabEv ? 'checked' : ''}> tylko zdarzenia</label></div>`;
   const body = tabAsc ? R2.reverse().join('') + nextRow : nextRow + R2.join('');
   h += `<div class="sec ${tabAsc ? 'asc' : 'desc'}">${ord}<div class="stk2"><div id="hlInfo" class="hlinfo"></div></div>${tabAsc ? more : ''}<table class="tbl"><tr><th>Nr</th><th>Kod</th><th>GRA</th><th>Stan / rola</th></tr>${body}</table>`;
   if (!tabAsc) h += more;
