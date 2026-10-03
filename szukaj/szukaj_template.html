@@ -256,7 +256,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.7.0';
+const APP_VER = '2.7.1';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -407,8 +407,9 @@ function trigNext(m) {   // które kody na w. N+1 dadzą TRIGGER (gdy STEP otwar
 function card(k, m, r, kind) {
   const n = codes.length, step = r.bs + 1, stake = ST[r.bs], cyc = r.nw + r.nbu, lim = limitFor(cyc);
   let st = '';
-  if (kind === 'gra') st = `<div class="st p1">GRAJ w.${n + 1}: ${stake} zł na ${tgt} (krok ${step}/8, kurs 3,0)<span class="s">TRIGGER w.${r.wz - m[4] + 1} + ${m[4]}</span></div>`;
-  else if (kind === 'czeka') st = `<div class="st p2">Zakład ustawiony: ${stake} zł na w.${r.wz + 1} (za ${r.wz + 1 - n} w.)<span class="s">nic nie rób do tego wiersza</span></div>`;
+  const tw = () => { const t = r.wz - m[4], two = partsOf(m[3]).length === 2; return `TRIGGER ${two ? `w.${t}–${t + 1} (${codes[t - 1]} + ${codes[t]})` : `w.${t + 1} (${codes[t]})`} = ${m[3]} · +${m[4]}`; };
+  if (kind === 'gra') st = `<div class="st p1">GRAJ w.${n + 1}: ${stake} zł na ${tgt} (krok ${step}/8, kurs 3,0)<span class="s">${tw()}</span></div>`;
+  else if (kind === 'czeka') st = `<div class="st p2">Zakład ustawiony: ${stake} zł na w.${r.wz + 1} (za ${r.wz + 1 - n} w.)<span class="s">${tw()} · nic nie rób do tego wiersza</span></div>`;
   else if (kind === 'trig') {
     const tc = trigNext(m);
     st = `<div class="st p3">STEP otwarty (w.${r.srow + 1}) — czekam na TRIGGER ${esc(m[3])}` +
