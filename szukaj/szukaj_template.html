@@ -39,7 +39,11 @@ main{padding:10px 12px 90px;max-width:760px;margin:0 auto}
 .sh b{font-size:14px}.sh .m{color:var(--mu);font-size:12px}
 .mc{border-left:5px solid var(--bd);background:var(--card);border-radius:8px;padding:7px 9px;margin-bottom:6px}
 .mc.k5{border-left-color:#2e75b6}.mc.k6{border-left-color:#7030a0}.mc.k7{border-left-color:var(--or)}
-.mc{cursor:pointer}
+.mc{cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}.mc.hold{filter:brightness(1.35)}
+.pop{position:fixed;inset:0;z-index:50;background:#000b;display:flex;align-items:flex-end;justify-content:center}
+.pop .sheet{width:100%;max-width:760px;max-height:88vh;overflow:auto;background:var(--pan);border-top:3px solid var(--or);border-radius:14px 14px 0 0;padding:12px 14px 24px}
+.pop h3{margin:0 0 2px;font-size:18px}.pop .hs{color:var(--mu);font-size:12.5px;margin-bottom:6px}.pop .x{float:right;background:var(--card);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:4px 10px;font-size:15px}
+.spnow{background:var(--card);border-radius:8px;padding:6px 9px;font-size:13px;margin:6px 0}
 .flt{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:0 0 8px}.flt span{color:var(--mu);font-size:12px;width:44px}
 .flt .chip{padding:4px 10px;font-size:12.5px}
 .sec.star{border-color:#ffd34d}
@@ -256,7 +260,7 @@ onmessage = e => {
 const CFG = __CFG__;            // {app, seedKey, razem, targets:[...], defRules, minCyc}
 const MASTER_SEED = '__SEED__';
 const POOLS = __POOLS__;        // {x1x:{seedN,pool:[[typ,STEP,x,TRIG,off]...]}, ...}
-const APP_VER = '2.7.2';
+const APP_VER = '2.8.0';
 const SEED_N = MASTER_SEED.length / 3;
 const AL = CFG.alph, TPOS = { x1x: 1, xx1: 2, '1xx': 0 };
 const LSK = { my: CFG.app + '_szukaj_v1_moje_', bands: CFG.app + '_szukaj_v1_bands', imp: CFG.app + '_szukaj_v1_lastimp', found: CFG.app + '_szukaj_v1_found_', rules: CFG.app + '_szukaj_v1_rules', tgt: CFG.app + '_szukaj_v1_tgt', ks: CFG.app + '_szukaj_v1_ks' };
@@ -299,6 +303,40 @@ function startMy(k) {
   a.push({ m: P[k].slice(0, 5), id: mid(k, P[k]), start: codes.length, s0: r.bs + 1, t: Date.now() });
   setMy(a); toast(`Gram ${mid(k, P[k])} od kroku ${r.bs + 1} (${ST[r.bs]} zł) — w MOJE GRY do WIN / BUST`); render();
 }
+// ---- okno STATYSTYKI modelu (przytrzymanie karty): statystyki + „Gram ten model” → MOJE GRY ----
+let statK = null;
+function openStats(k) { statK = k; selK = k; tabN = 150; tabScroll = true; hlBet = -1; liveOn = true; needLabels(); renderSheet(); }
+function closeStats() { statK = null; const o = $('statPop'); if (o) o.remove(); }
+function renderSheet() {
+  if (statK === null) return;
+  let o = $('statPop');
+  if (!o) { o = document.createElement('div'); o.id = 'statPop'; o.className = 'pop'; document.body.appendChild(o); o.onclick = e => { if (e.target === o) closeStats(); }; }
+  const k = statK, m = P[k], r = lastEval ? lastEval.out[k] : null, ready = lab && selK === k && r;
+  const mine = isMine(k), g = mine ? getMy().find(x => specKey(x.m) === specKey(m)) : null, res = g ? myResult(g, r) : null;
+  const ph = !r ? '' : r.ph === 2 ? (r.wz === codes.length ? `GRA na następnym wierszu (w.${r.wz + 1})` : `zakład ustawiony na w.${r.wz + 1} (za ${r.wz + 1 - codes.length})`) : r.ph === 1 ? 'STEP otwarty — czekam na TRIGGER' : 'czekam na STEP';
+  o.innerHTML = `<div class="sheet"><button class="x" id="spX">✕</button>
+    <h3>Model ${mid(k, m)}</h3><div class="hs">${esc(ruleTxt(m))}</div>
+    ${r ? `<div class="spnow">Teraz: <b>krok ${r.bs + 1} · ${ST[r.bs]} zł</b> · ${ph}</div>` : ''}
+    ${!r ? '' : mine
+      ? `<button class="btn playing" id="spStop">${res ? (res.win ? '✔ WIN' : '✖ BUST') + ` — gra zakończona (${res.pnl >= 0 ? '+' : ''}${res.pnl} zł). Usuń z MOJE GRY` : `■ W MOJE GRY od w.${g.start + 1} (wejście k${g.s0}) — przestań śledzić`}</button>`
+      : `<button class="btn play" id="spPlay">▶ Gram ten model — dodaj do MOJE GRY (teraz krok ${r.bs + 1}, ${ST[r.bs]} zł)</button><div class="hint" style="margin-top:4px">Model zostanie w MOJE GRY na górze ekranu GRA do WIN albo kroku 8, niezależnie od kryteriów i filtrów.</div>`}
+    ${ready ? statsHtml(r) : '<div class="hint" style="margin-top:10px">Liczę statystyki…</div>'}
+    <button class="btn more" id="spTab" style="margin-top:10px">Otwórz TABELĘ tego modelu</button></div>`;
+  $('spX').onclick = closeStats;
+  $('spTab').onclick = () => { closeStats(); openTab(k); };
+  const p = $('spPlay'); if (p) p.onclick = () => { startMy(k); renderSheet(); };
+  const s = $('spStop'); if (s) s.onclick = () => { if (confirm('Usunąć z MOJE GRY?')) { stopMy(specKey(m)); renderSheet(); } };
+}
+// dotknięcie karty → TABELA; przytrzymanie (albo prawy klik) → STATYSTYKI
+function bindCard(c) {
+  const k = +c.dataset.mk; let t = null, lp = false, x0 = 0, y0 = 0;
+  const cancel = () => { clearTimeout(t); t = null; };
+  c.addEventListener('pointerdown', e => { lp = false; x0 = e.clientX; y0 = e.clientY; cancel(); t = setTimeout(() => { lp = true; c.classList.add('hold'); setTimeout(() => c.classList.remove('hold'), 250); openStats(k); }, 550); });
+  c.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) cancel(); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => c.addEventListener(ev, cancel));
+  c.addEventListener('contextmenu', e => { e.preventDefault(); cancel(); lp = true; openStats(k); });
+  c.onclick = () => { if (lp) { lp = false; return; } openTab(k); };
+}
 function stopMy(key) { setMy(getMy().filter(g => specKey(g.m) !== key)); render(); }
 function myResult(g, r) {   // null = gra trwa; inaczej wynik od wejścia (stawki gracza od kroku s0)
   if (!r || r.le < g.start) return null;
@@ -318,8 +356,8 @@ let selK = null, lab = null, labId = 0, labFor = '', tabN = 150, tabEv = false, 
 let tabAsc = (() => { try { return localStorage.getItem(CFG.app + '_szukaj_v1_asc') !== '0'; } catch (e) { return true; } })();   // najstarsze u góry   // TABELA: wybrany model + jego etykiety
 W.onmessage = e => {
   const d = e.data;
-  if (d.type === 'eval') { if (d.id !== evalId) return; lastEval = d; busy = false; render(); }
-  if (d.type === 'label') { if (d.id !== labId) return; lab = d; if (view === 'tab') render(); }
+  if (d.type === 'eval') { if (d.id !== evalId) return; lastEval = d; busy = false; render(); if (statK !== null) { needLabels(); renderSheet(); } }
+  if (d.type === 'label') { if (d.id !== labId) return; lab = d; if (view === 'tab') render(); if (statK !== null) renderSheet(); }
   if (d.type === 'prog') { searching = d; if (view === 'ust') render(); }
   if (d.type === 'search') {
     const f = getFound(), n = codes.length;
@@ -421,7 +459,7 @@ function card(k, m, r, kind) {
   const k5t = r.k5 ? `z k5: ${r.k5} wejść → W ${r.k5w} · BUST ${r.k5b}` : 'z k5: brak wejść';
   return `<div class="mc k${step}${isTop(r) ? ' ktop' : ''}" data-mk="${k}"><div class="h"><span class="id">${mid(k, m)}${isTop(r) ? ` <span class="top">★ ${topCyc()}+ cykli</span>` : ''}</span><span class="stk">krok ${step} · ${stake} zł</span></div>
     <div class="rule">${esc(ruleTxt(m))}</div>${st}
-    <div class="meta"><span>cykle ${cyc} · BUST ${r.nbu}/${lim === null ? '—' : lim} · <span class="${r.pnl >= 0 ? 'pos' : 'neg'}">${r.pnl >= 0 ? '+' : ''}${r.pnl} zł</span></span><span>${k5t}</span></div><div class="tapt">dotknij → TABELA z etykietami tego modelu</div></div>`;
+    <div class="meta"><span>cykle ${cyc} · BUST ${r.nbu}/${lim === null ? '—' : lim} · <span class="${r.pnl >= 0 ? 'pos' : 'neg'}">${r.pnl >= 0 ? '+' : ''}${r.pnl} zł</span></span><span>${k5t}</span></div><div class="tapt">dotknij → TABELA · przytrzymaj → STATYSTYKI i „Gram ten model”</div></div>`;
 }
 const ST = [8, 8, 16, 32, 64, 128, 256, 512];
 function limitFor(cyc) { for (const [mc, mb] of R.rules) if (mc === null || cyc <= mc) return mb; return null; }
@@ -686,7 +724,7 @@ function statsHtml(r) {
     ${row('ostatni BUST', `${lb}`)}
     ${row('2 BUST-y pod rząd (cykl po cyklu)', `${two}`)}
     ${row('najdłuższa seria BUST pod rząd', `<b>${S.maxRun}</b>`)}
-    ${row('najbliższe 2 BUST-y', `<b>${S.minGap === null ? '—' : 'co ' + S.minGap + ' cykli'}</b>`)}
+    ${row('najbliższe 2 BUST-y', `<b>${S.minGap === null ? '—' : 'co ' + S.minGap + (S.minGap === 1 ? ' cykl (pod rząd)' : S.minGap <= 4 ? ' cykle' : ' cykli')}</b>`)}
     ${row('cykle, które doszły do k5 (64 zł)', `<b>${S.k5} → WIN ${S.k5w} · BUST ${S.b}${r && r.k5 > S.k5 ? ` · +1 w toku (teraz k${r.bs + 1})` : ''}</b>`)}
     ${row('WIN na krokach k1…k8', `<b>${S.wk.slice(1).join(' · ')}</b>`)}
     ${row('bilans modelu (K8 od k1)', `<b class="${r && r.pnl >= 0 ? 'ok' : 'bad'}">${r ? (r.pnl >= 0 ? '+' : '') + r.pnl + ' zł' : ''}</b>`)}
@@ -821,7 +859,7 @@ function render() {
     });
     el.querySelectorAll('[data-stop]').forEach(b => b.onclick = e => { e.stopPropagation(); if (confirm('Usunąć z MOJE GRY?')) stopMy(b.dataset.stop); });
     el.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const i = +b.dataset.more; bandCap[i] = (bandCap[i] || 15) + 30; render(); });
-    el.querySelectorAll('[data-mk]').forEach(c => c.onclick = () => openTab(+c.dataset.mk));
+    el.querySelectorAll('[data-mk]').forEach(bindCard);
   }
   if (view === 'ust') {
     $('saveR').onclick = () => {
