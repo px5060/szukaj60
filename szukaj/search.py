@@ -1,5 +1,5 @@
 """Szukanie puli modeli na całej bazie (seed_<t50|t60>.txt + opcjonalnie szukaj/dopisane.txt).
-Uruchom w katalogu szukaj/:  python3 search.py t50|t60 x1x|xx1 [n_konfiguracji] [ziarno] [--dolacz]   (wymaga: pip install numba numpy)
+Uruchom w katalogu szukaj/:  python3 search.py t50|t60 x1x|xx1 [n_konfiguracji] [ziarno] [--dolacz | --stale]   (wymaga: pip install numba numpy)
 Potem:                        python3 build_szukaj.py t50|t60   → ../index.html"""
 import sys, json, itertools, time, re, pathlib, numpy as np
 from engine import *
@@ -69,7 +69,9 @@ def main():
     # pula warstwowa: w każdym przedziale cykli najlepsze wg BUST/cykl (potem więcej cykli)
     # dołącz pulę z poprzednich uruchomień (inne ziarno losowania) — nic znalezionego nie ginie
     old = HERE / f'pool_{name}_{target}.json'
-    keep = json.loads(old.read_text())['pool'] if old.exists() and '--dolacz' in sys.argv else []
+    # --stale: stałe numery P — stara pula w tej samej kolejności na początku, nowe modele na końcu (P… w MOJE / analizie się nie zmieniają)
+    stale = '--stale' in sys.argv
+    keep = json.loads(old.read_text())['pool'] if old.exists() and ('--dolacz' in sys.argv or stale) else []
     idx = []
     for lo, hi, take in [(401, 10**9, 1000), (100, 200, 1000), (201, 300, 1000), (301, 400, 600)]:
         g = np.where(ok & (cyc >= lo) & (cyc <= hi))[0]
@@ -79,7 +81,13 @@ def main():
         t_, s_ = step[cfg[k, 0]]
         pool.append([t_[0], s_, int(cfg[k, 2]), trig[cfg[k, 1]], int(cfg[k, 3])])
     seen = {json.dumps(m, ensure_ascii=False) for m in pool}
-    pool += [m for m in keep if json.dumps(m, ensure_ascii=False) not in seen]
+    if stale:
+        ks = {json.dumps(m, ensure_ascii=False) for m in keep}
+        nowe = [m for m in pool if json.dumps(m, ensure_ascii=False) not in ks]
+        pool = keep + nowe
+        print(f'   stałe numery: P1–P{len(keep)} bez zmian, nowe P{len(keep) + 1}–P{len(pool)} ({len(nowe)})')
+    else:
+        pool += [m for m in keep if json.dumps(m, ensure_ascii=False) not in seen]
     json.dump({'name': name, 'target': target, 'seedN': len(codes), 'rules': RULES, 'minCyc': MIN_CYC, 'pool': pool},
               open(HERE / f'pool_{name}_{target}.json', 'w'), ensure_ascii=False, separators=(',', ':'))
     print('   pula zapisana:', len(pool))
